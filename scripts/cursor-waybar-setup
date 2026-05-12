@@ -88,6 +88,17 @@ if printf '%s' "$out" | grep -q '"text":"?"'; then
 fi
 
 printf 'OK: %s\n\n' "$out"
-printf '%s\n' "Waybar: you can use a plain exec now, e.g."
-printf '  \"exec\": \"%s\"\n' "$USAGE_BIN"
-printf '%s\n' "Remove CURSOR_READ_SQLITE from the shell wrapper if you added it earlier."
+
+usage_abs="$USAGE_BIN"
+if command -v realpath >/dev/null 2>&1; then
+	usage_abs="$(realpath "$USAGE_BIN" 2>/dev/null || echo "$USAGE_BIN")"
+elif command -v readlink >/dev/null 2>&1; then
+	usage_abs="$(readlink -f "$USAGE_BIN" 2>/dev/null || echo "$USAGE_BIN")"
+fi
+
+printf '%s\n' "Waybar — edit your module JSON (e.g. ~/.config/waybar/modules/custom-cursor_usage.jsonc),"
+printf '%s\n' "not the shell. Set the exec field to this path:"
+printf '\n  %s\n\n' "$usage_abs"
+printf '%s\n' "Example (JSON fragment — paste only inside your Waybar config file):"
+printf '  "exec": "%s"\n\n' "$usage_abs"
+printf '%s\n' "Remove any CURSOR_READ_SQLITE=1 shell wrapper around exec if you still have one."
