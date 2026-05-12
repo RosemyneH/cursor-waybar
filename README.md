@@ -58,6 +58,7 @@ Prefer the **token file** over environment variables (visible in `/proc`).
 
 - **Request limits** (Pro/Business with `gpt-4` `maxRequestUsage`): `text` like `Cur 42%`, `percentage` for the bar, tooltip shows used/limit.
 - **Usage-based**: aggregates **today** (local midnight → now) from filtered usage events; `text` like `Cur $0.03` (no `percentage`).
+- **Plan month (dashboard):** when `api2.cursor.sh` `GetCurrentPeriodUsage` accepts your JWT, the bar shows **Total %** like the Cursor settings view (same `planUsage` fields: total, Auto + Composer, API). The previous line (today `$` or gpt-4 requests) moves into the tooltip under a `---` separator. If that RPC fails, behavior falls back to the older display only.
 
 ## License
 

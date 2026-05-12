@@ -166,15 +166,23 @@ int main(void)
 		return 0;
 	}
 
+	char *jwt = cw_jwt_bearer_from_session(token);
 	char *cookie = cw_build_cookie_header(token, user_id);
 	free(token);
 	token = NULL;
 	if (!cookie) {
+		free(jwt);
 		free(user_id);
 		emit_waybar_error("Cookie build failed");
 		curl_global_cleanup();
 		return 0;
 	}
+
+	cJSON *period_root = NULL;
+	if (jwt && jwt[0])
+		period_root = cw_period_usage_fetch(jwt);
+	free(jwt);
+	jwt = NULL;
 
 	cJSON *usage = cw_api_get_usage(cookie, user_id);
 	cJSON *stripe = cw_api_get_stripe(cookie);
@@ -194,6 +202,7 @@ int main(void)
 	cJSON *out = cJSON_CreateObject();
 	char text[64];
 	char tip[512];
+	char tip_combined[2048];
 
 	if ((kind == CW_BILL_PRO || kind == CW_BILL_BUSINESS) && usage) {
 		int used = 0, lim = 0;
@@ -252,6 +261,46 @@ int main(void)
 		cJSON_AddStringToObject(out, "tooltip", tip);
 		cJSON_AddStringToObject(out, "class", "cursor-usage-usagebased");
 		cJSON_Delete(events);
+	}
+
+	if (period_root) {
+		int tp = -1, ap = -1, apii = -1;
+		char period_buf[896];
+		if (cw_period_dashboard_metrics(period_root, &tp, &ap, &apii,
+						period_buf,
+						sizeof period_buf) == 0) {
+			const char *prev = "";
+			cJSON *ot = cJSON_GetObjectItem(out, "tooltip");
+			if (cJSON_IsString(ot) && ot->valuestring)
+				prev = ot->valuestring;
+			if (prev[0])
+				snprintf(tip_combined, sizeof tip_combined,
+					 "%s\n---\n%s", period_buf, prev);
+			else
+				snprintf(tip_combined, sizeof tip_combined, "%s",
+					 period_buf);
+
+			snprintf(text, sizeof text, "Cur %d%%", tp);
+
+			if (cJSON_GetObjectItem(out, "text"))
+				cJSON_DeleteItemFromObject(out, "text");
+			if (cJSON_GetObjectItem(out, "0"))
+				cJSON_DeleteItemFromObject(out, "0");
+			if (cJSON_GetObjectItem(out, "tooltip"))
+				cJSON_DeleteItemFromObject(out, "tooltip");
+			if (cJSON_GetObjectItem(out, "percentage"))
+				cJSON_DeleteItemFromObject(out, "percentage");
+			if (cJSON_GetObjectItem(out, "class"))
+				cJSON_DeleteItemFromObject(out, "class");
+
+			cJSON_AddStringToObject(out, "text", text);
+			cJSON_AddStringToObject(out, "0", text);
+			cJSON_AddStringToObject(out, "tooltip", tip_combined);
+			cJSON_AddNumberToObject(out, "percentage", (double)tp);
+			cJSON_AddStringToObject(out, "class", usage_class(tp));
+		}
+		cJSON_Delete(period_root);
+		period_root = NULL;
 	}
 
 	char *line = cJSON_PrintUnformatted(out);

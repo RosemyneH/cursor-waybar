@@ -3,7 +3,8 @@ CFLAGS += -std=c11 -O2 -Wall -Wextra -Iinclude -Ithird_party
 LDFLAGS += -lcurl -lm
 
 TARGET := cursor-waybar-usage
-OBJS := src/main.o src/http.o src/token.o src/cursor_api.o src/billing.o third_party/cJSON.o
+OBJS := src/main.o src/http.o src/token.o src/cursor_api.o src/billing.o \
+	src/period_api.o third_party/cJSON.o
 
 .PHONY: all clean install install-setup
 

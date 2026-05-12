@@ -196,3 +196,20 @@ char *cw_build_cookie_header(const char *session_or_jwt, const char *user_id)
 	free(work);
 	return hdr;
 }
+
+char *cw_jwt_bearer_from_session(const char *session_or_jwt)
+{
+	char *copy = strdup(session_or_jwt);
+	if (!copy)
+		return NULL;
+	cw_url_decode_inplace(copy);
+	char *sep = strstr(copy, "::");
+	if (sep) {
+		char *jwt = strdup(sep + 2);
+		free(copy);
+		return jwt;
+	}
+	char *jwt = strdup(copy);
+	free(copy);
+	return jwt;
+}
