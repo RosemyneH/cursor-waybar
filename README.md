@@ -10,21 +10,43 @@ Requires a C11 compiler and **libcurl** development headers.
 
 ```sh
 make
-make install   # installs to ~/.local/bin by default; override with PREFIX=
+make install   # installs cursor-waybar-usage + cursor-waybar-setup to ~/.local/bin (override PREFIX=)
 ```
 
 JSON parsing uses a **vendored** [cJSON](https://github.com/DaveGamble/cJSON) (`third_party/`).
 
-## Token
+## First-time setup (token)
 
-Provide a Cursor session **access token** (JWT from SQLite) or full **`WorkosCursorSessionToken`** cookie value, in this order:
+Run the helper once in a terminal:
+
+```sh
+cursor-waybar-setup
+```
+
+From a git clone (before `make install`):
+
+```sh
+bash scripts/cursor-waybar-setup
+```
+
+It will, in order:
+
+1. Try **`sqlite3`** on `~/.config/Cursor/User/globalStorage/state.vscdb` (Cursor must have been opened and signed in at least once).
+2. If that fails or you decline, prompt you to **paste** the **`WorkosCursorSessionToken`** cookie from [cursor.com](https://cursor.com) (browser devtools → Application → Cookies), or a bare JWT if you know what you are doing.
+
+It writes **`~/.config/cursor-waybar/token`** with mode **0600**, then runs **`cursor-waybar-usage`** once to confirm the output is not an error line.
+
+After that, Waybar can use a **plain** `exec` path to `cursor-waybar-usage` (no `CURSOR_READ_SQLITE` wrapper required).
+
+## Token (manual / advanced)
+
+If you skip the script, credentials are read in this order:
 
 1. Environment: `CURSOR_SESSION_TOKEN` or `CURSOR_ACCESS_TOKEN`
-2. File: `CURSOR_TOKEN_FILE` path, or `~/.config/cursor-waybar/token` (also respects `XDG_CONFIG_HOME`)
-3. If `CURSOR_READ_SQLITE=1`, read `cursorAuth/accessToken` from  
-   `~/.config/Cursor/User/globalStorage/state.vscdb` via the `sqlite3` CLI
+2. File: `CURSOR_TOKEN_FILE`, or `$XDG_CONFIG_HOME/cursor-waybar/token`, or `~/.config/cursor-waybar/token`
+3. If `CURSOR_READ_SQLITE=1`, read `cursorAuth/accessToken` from the Cursor DB via `sqlite3` on each run
 
-Prefer a **0600** token file; environment variables are visible in `/proc`.
+Prefer the **token file** over environment variables (visible in `/proc`).
 
 ## Waybar
 

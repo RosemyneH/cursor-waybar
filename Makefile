@@ -5,7 +5,7 @@ LDFLAGS += -lcurl -lm
 TARGET := cursor-waybar-usage
 OBJS := src/main.o src/http.o src/token.o src/cursor_api.o src/billing.o third_party/cJSON.o
 
-.PHONY: all clean install
+.PHONY: all clean install install-setup
 
 all: $(TARGET)
 
@@ -21,6 +21,10 @@ third_party/cJSON.o: third_party/cJSON.c third_party/cJSON.h
 clean:
 	rm -f $(OBJS) $(TARGET)
 
-install: $(TARGET)
+install: $(TARGET) install-setup
 	install -d "$(DESTDIR)$(PREFIX)/bin"
 	install -m755 $(TARGET) "$(DESTDIR)$(PREFIX)/bin/"
+
+install-setup:
+	install -d "$(DESTDIR)$(PREFIX)/bin"
+	install -m755 scripts/cursor-waybar-setup "$(DESTDIR)$(PREFIX)/bin/cursor-waybar-setup"

@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Writes ~/.config/cursor-waybar/token (0600) from SQLite or paste.
+set -e
+
+die() { printf '%s\n' "$*" >&2; exit 1; }
+
+resolve_usage_bin() {
+	if [[ -n "${CURSOR_WAYBAR_USAGE_BIN:-}" && -x "${CURSOR_WAYBAR_USAGE_BIN}" ]]; then
+		printf '%s' "$CURSOR_WAYBAR_USAGE_BIN"
+		return 0
+	fi
+	local d
+	d="$(cd "$(dirname "$0")" && pwd)"
+	if [[ -x "$d/cursor-waybar-usage" ]]; then
+		printf '%s' "$d/cursor-waybar-usage"
+		return 0
+	fi
+	if [[ -x "$d/../cursor-waybar-usage" ]]; then
+		printf '%s' "$d/../cursor-waybar-usage"
+		return 0
+	fi
+	if command -v cursor-waybar-usage >/dev/null 2>&1; then
+		command -v cursor-waybar-usage
+		return 0
+	fi
+	return 1
+}
+
+CURSOR_DB="${CURSOR_STATE_DB:-$HOME/.config/Cursor/User/globalStorage/state.vscdb}"
+TOKEN_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/cursor-waybar"
+TOKEN_FILE="${CURSOR_WAYBAR_TOKEN_FILE:-$TOKEN_DIR/token}"
+
+printf '\n cursor-waybar — token setup\n'
+printf ' Token file: %s\n\n' "$TOKEN_FILE"
+
+mkdir -p "$TOKEN_DIR"
+chmod 700 "$TOKEN_DIR" 2>/dev/null || true
+
+token=""
+if command -v sqlite3 >/dev/null 2>&1 && [[ -r "$CURSOR_DB" ]]; then
+	token="$(
+		sqlite3 "$CURSOR_DB" \
+			"SELECT value FROM ItemTable WHERE key = 'cursorAuth/accessToken' LIMIT 1;" 2>/dev/null |
+			tr -d '\r\n' || true
+	)"
+	if [[ -n "$token" ]]; then
+		printf 'Found Cursor access token in:\n  %s\n' "$CURSOR_DB"
+		read -r -p 'Save it to your token file? [Y/n] ' ans
+		if [[ "${ans:-y}" =~ ^[Nn] ]]; then
+			token=""
+		fi
+	fi
+fi
+
+if [[ -z "$token" ]]; then
+	printf '%s\n' "No token from SQLite (install sqlite3, open Cursor, sign in), or you declined."
+	printf '%s\n\n' "Manual option — paste ONE of:"
+	printf '%s\n' "  • Value of cookie WorkosCursorSessionToken from https://cursor.com (Application → Cookies)"
+	printf '%s\n\n' "  • Or the bare JWT from the same DB key (advanced)"
+	printf 'Paste token on the next line and press Enter:\n'
+	read -r token || true
+	token="${token//$'\r'/}"
+	token="${token#"${token%%[![:space:]]*}"}"
+	token="${token%"${token##*[![:space:]]}"}"
+fi
+
+[[ -n "$token" ]] || die "No token entered; aborting."
+
+umask 077
+printf '%s' "$token" >"$TOKEN_FILE"
+chmod 600 "$TOKEN_FILE" || true
+printf '\nWrote %s (mode 600).\n' "$TOKEN_FILE"
+
+USAGE_BIN="$(resolve_usage_bin)" || die "cursor-waybar-usage not found. Build/install with: make install"
+
+printf '\nVerifying (no CURSOR_READ_SQLITE needed if this file exists)…\n'
+unset CURSOR_SESSION_TOKEN CURSOR_ACCESS_TOKEN CURSOR_TOKEN_FILE CURSOR_READ_SQLITE 2>/dev/null || true
+out="$("$USAGE_BIN" 2>/dev/null || true)"
+if printf '%s' "$out" | grep -q '"class":"cursor-usage-err"'; then
+	printf '%s\n' "Check failed (API returned error). Output:"
+	printf '%s\n' "$out"
+	die "Fix token or network and re-run this script."
+fi
+if printf '%s' "$out" | grep -q '"text":"?"'; then
+	printf '%s\n' "Check failed. Output:"
+	printf '%s\n' "$out"
+	die "Token may be wrong or expired; paste a fresh WorkosCursorSessionToken from the browser."
+fi
+
+printf 'OK: %s\n\n' "$out"
+printf '%s\n' "Waybar: you can use a plain exec now, e.g."
+printf '  \"exec\": \"%s\"\n' "$USAGE_BIN"
+printf '%s\n' "Remove CURSOR_READ_SQLITE from the shell wrapper if you added it earlier."
