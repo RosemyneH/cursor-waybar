@@ -50,6 +50,8 @@ Prefer the **token file** over environment variables (visible in `/proc`).
 
 ## Waybar
 
+**HyDE / regenerated bar:** the string **`custom/cursor_usage`** must appear in your Waybar **`modules-*`** list or inside a **`group/...` → `modules`** array in `~/.config/waybar/config.jsonc`. A separate file under `modules/` only defines the module; Hyde’s layout generator can **drop** that name when it rewrites `config.jsonc` — re-add `"custom/cursor_usage"` after each regen if it vanishes.
+
 **HyDE / `{0}` format:** many Hyde module configs use `"format": "{0}"`. This program sets both **`text`** and **`0`** to the same string so either `{text}` or `{0}` works.
 
 **Offline / theme check:** `CURSOR_WAYBAR_MOCK_JSON='{"text":"Cur 0%","tooltip":"mock","percentage":0}' cursor-waybar-usage`

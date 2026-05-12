@@ -1,10 +1,10 @@
 {
-  "//_comment": "HyDE-style JSON modules often use format \"{0}\" — this binary sets \"0\" and \"text\" to the same label string.",
-  "modules-right": ["custom/cursor_usage"],
+  "//_1": "HyDE: add \"custom/cursor_usage\" inside group/pill#right* -> modules in ~/.config/waybar/config.jsonc (layout regen removes it otherwise).",
+  "//_2": "This file only defines the module; it does not place it on the bar.",
   "custom/cursor_usage": {
     "return-type": "json",
-    "exec": "/bin/sh -c 'exec env CURSOR_READ_SQLITE=1 /home/USER/.local/bin/cursor-waybar-usage'",
-    "interval": 180,
+    "exec": "/home/USER/.local/bin/cursor-waybar-usage",
+    "interval": 120,
     "format": "{0}",
     "tooltip": true,
     "tooltip-format": "{tooltip}",
