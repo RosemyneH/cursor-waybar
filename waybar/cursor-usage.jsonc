@@ -1,14 +1,14 @@
 {
-  "//_1": "HyDE: add \"custom/cursor_usage\" inside group/pill#right* -> modules in ~/.config/waybar/config.jsonc (layout regen removes it otherwise).",
-  "//_2": "This file only defines the module; it does not place it on the bar.",
+  "//_1": "HyDE: use layout hyprdots/05-cursor or add group/pill#cursor + custom/cursor_usage to modules-left.",
+  "//_2": "This file only defines the module; layout lists place it on the bar.",
   "custom/cursor_usage": {
     "return-type": "json",
-    "exec": "/home/USER/.local/bin/cursor-waybar-usage",
+    "exec": "/bin/sh -c 'exec \"$HOME/.local/bin/cursor-waybar-usage\"'",
     "interval": 120,
     "format": "{0}",
     "tooltip": true,
     "tooltip-format": "{tooltip}",
     "rotate": 0,
-    "max-length": 48
+    "max-length": 28
   }
 }

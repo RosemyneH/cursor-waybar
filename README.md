@@ -50,6 +50,8 @@ Prefer the **token file** over environment variables (visible in `/proc`).
 
 ## Waybar
 
+**HyDE dotfiles (HyDE/Configs):** for Hyde users, this repo’s layout and module are mirrored under **`HyDE/Configs/.local/share/waybar/layouts/hyprdots/05-cursor.jsonc`**, **`HyDE/Configs/.local/share/waybar/modules/custom-cursor_usage.jsonc`**, and the same **`modules/`** / **`layouts/`** / **`user-style.css`** snippets under **`HyDE/Configs/.config/waybar/`** (sync to `~/.config/waybar/`). The module `exec` uses `"$HOME/.local/bin/cursor-waybar-usage"`.
+
 **HyDE / regenerated bar:** the string **`custom/cursor_usage`** must appear in your Waybar **`modules-*`** list or inside a **`group/...` → `modules`** array in `~/.config/waybar/config.jsonc`. A separate file under `modules/` only defines the module; Hyde’s layout generator can **drop** that name when it rewrites `config.jsonc` — re-add `"custom/cursor_usage"` after each regen if it vanishes.
 
 **HyDE / `{0}` format:** many Hyde module configs use `"format": "{0}"`. This program sets both **`text`** and **`0`** to the same string so either `{text}` or `{0}` works.
