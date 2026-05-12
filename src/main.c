@@ -95,6 +95,7 @@ static void emit_waybar_error(const char *msg)
 {
 	cJSON *o = cJSON_CreateObject();
 	cJSON_AddStringToObject(o, "text", "?");
+	cJSON_AddStringToObject(o, "0", "?");
 	cJSON_AddStringToObject(o, "tooltip", msg);
 	cJSON_AddStringToObject(o, "class", "cursor-usage-err");
 	char *s = cJSON_PrintUnformatted(o);
@@ -209,6 +210,7 @@ int main(void)
 				 kind == CW_BILL_BUSINESS ? "business"
 							  : "pro");
 			cJSON_AddStringToObject(out, "text", text);
+			cJSON_AddStringToObject(out, "0", text);
 			cJSON_AddStringToObject(out, "tooltip", tip);
 			cJSON_AddNumberToObject(out, "percentage", (double)pct);
 			cJSON_AddStringToObject(out, "class", usage_class(pct));
@@ -236,6 +238,8 @@ int main(void)
 
 		if (cJSON_GetObjectItem(out, "text"))
 			cJSON_DeleteItemFromObject(out, "text");
+		if (cJSON_GetObjectItem(out, "0"))
+			cJSON_DeleteItemFromObject(out, "0");
 		if (cJSON_GetObjectItem(out, "tooltip"))
 			cJSON_DeleteItemFromObject(out, "tooltip");
 		if (cJSON_GetObjectItem(out, "percentage"))
@@ -244,6 +248,7 @@ int main(void)
 			cJSON_DeleteItemFromObject(out, "class");
 
 		cJSON_AddStringToObject(out, "text", text);
+		cJSON_AddStringToObject(out, "0", text);
 		cJSON_AddStringToObject(out, "tooltip", tip);
 		cJSON_AddStringToObject(out, "class", "cursor-usage-usagebased");
 		cJSON_Delete(events);

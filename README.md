@@ -28,7 +28,7 @@ Prefer a **0600** token file; environment variables are visible in `/proc`.
 
 ## Waybar
 
-Merge the example blocks from [`waybar/cursor-usage.jsonc`](waybar/cursor-usage.jsonc) into your config and include [`waybar/style.css`](waybar/style.css) (or copy the rules). Point `exec` at your installed `cursor-waybar-usage`.
+**HyDE / `{0}` format:** many Hyde module configs use `"format": "{0}"`. This program sets both **`text`** and **`0`** to the same string so either `{text}` or `{0}` works.
 
 **Offline / theme check:** `CURSOR_WAYBAR_MOCK_JSON='{"text":"Cur 0%","tooltip":"mock","percentage":0}' cursor-waybar-usage`
 
