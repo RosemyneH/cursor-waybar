@@ -61,6 +61,7 @@ static void append_fmt(char *buf, size_t cap, int *woff, const char *fmt, ...)
 
 int cw_period_dashboard_metrics(cJSON *period_root, int *total_pct_out,
 				int *auto_pct_out, int *api_pct_out,
+				double *auto_raw_out, double *api_raw_out,
 				char *tip_append, size_t tip_cap)
 {
 	cJSON *en = NULL;
@@ -73,6 +74,10 @@ int cw_period_dashboard_metrics(cJSON *period_root, int *total_pct_out,
 		return -1;
 
 	*total_pct_out = *auto_pct_out = *api_pct_out = -1;
+	if (auto_raw_out)
+		*auto_raw_out = NAN;
+	if (api_raw_out)
+		*api_raw_out = NAN;
 	tip_append[0] = '\0';
 
 	en = cJSON_GetObjectItemCaseSensitive(period_root, "enabled");
@@ -116,6 +121,11 @@ int cw_period_dashboard_metrics(cJSON *period_root, int *total_pct_out,
 	*auto_pct_out = pct_round_clamp(auto_pct);
 	*api_pct_out = pct_round_clamp(api_pct);
 
+	if (auto_raw_out && isfinite(auto_pct))
+		*auto_raw_out = auto_pct;
+	if (api_raw_out && isfinite(api_pct))
+		*api_raw_out = api_pct;
+
 	{
 		cJSON *bs =
 			cJSON_GetObjectItemCaseSensitive(period_root,
@@ -140,14 +150,13 @@ int cw_period_dashboard_metrics(cJSON *period_root, int *total_pct_out,
 		}
 	}
 
-	append_fmt(tip_append, tip_cap, &w, "Total (plan): %d%%\n",
-		   *total_pct_out);
-	if (*auto_pct_out >= 0)
+	append_fmt(tip_append, tip_cap, &w, "Total (plan): %.1f%%\n", total);
+	if (isfinite(auto_pct))
 		append_fmt(tip_append, tip_cap, &w,
-			   "Auto + Composer: %d%%\n", *auto_pct_out);
-	if (*api_pct_out >= 0)
-		append_fmt(tip_append, tip_cap, &w, "API: %d%%\n",
-			   *api_pct_out);
+			   "Auto + Composer: %.1f%%\n", auto_pct);
+	if (isfinite(api_pct))
+		append_fmt(tip_append, tip_cap, &w, "API: %.1f%%\n",
+			   api_pct);
 
 	{
 		cJSON *dm = cJSON_GetObjectItemCaseSensitive(period_root,

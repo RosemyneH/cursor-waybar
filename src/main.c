@@ -2,6 +2,7 @@
 #include "cursor_waybar.h"
 
 #include <curl/curl.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -113,6 +114,36 @@ static const char *usage_class(int pct)
 	if (pct >= 80)
 		return "cursor-usage-mid";
 	return "cursor-usage-low";
+}
+
+static void fmt_pct_label(char *dst, size_t cap, double x)
+{
+	if (!isfinite(x) || cap < 4) {
+		dst[0] = '\0';
+		return;
+	}
+	if (fabs(x - round(x)) < 0.05)
+		snprintf(dst, cap, "%d%%", (int)round(x));
+	else
+		snprintf(dst, cap, "%.1f%%", x);
+}
+
+static void build_auto_api_pill(char *dst, size_t cap, double auto_raw,
+				double api_raw, int total_pct_fallback)
+{
+	char a[20], b[20];
+	fmt_pct_label(a, sizeof a, auto_raw);
+	fmt_pct_label(b, sizeof b, api_raw);
+	if (a[0] && b[0])
+		snprintf(dst, cap, "%s · %s", a, b);
+	else if (a[0])
+		snprintf(dst, cap, "%s", a);
+	else if (b[0])
+		snprintf(dst, cap, "%s", b);
+	else if (total_pct_fallback >= 0)
+		snprintf(dst, cap, "Cur %d%%", total_pct_fallback);
+	else
+		snprintf(dst, cap, "—");
 }
 
 int main(void)
@@ -265,9 +296,11 @@ int main(void)
 
 	if (period_root) {
 		int tp = -1, ap = -1, apii = -1;
+		double auto_raw = NAN;
+		double api_raw = NAN;
 		char period_buf[896];
 		if (cw_period_dashboard_metrics(period_root, &tp, &ap, &apii,
-						period_buf,
+						&auto_raw, &api_raw, period_buf,
 						sizeof period_buf) == 0) {
 			const char *prev = "";
 			cJSON *ot = cJSON_GetObjectItem(out, "tooltip");
@@ -280,7 +313,8 @@ int main(void)
 				snprintf(tip_combined, sizeof tip_combined, "%s",
 					 period_buf);
 
-			snprintf(text, sizeof text, "Cur %d%%", tp);
+			build_auto_api_pill(text, sizeof text, auto_raw, api_raw,
+					    tp);
 
 			if (cJSON_GetObjectItem(out, "text"))
 				cJSON_DeleteItemFromObject(out, "text");
@@ -296,7 +330,9 @@ int main(void)
 			cJSON_AddStringToObject(out, "text", text);
 			cJSON_AddStringToObject(out, "0", text);
 			cJSON_AddStringToObject(out, "tooltip", tip_combined);
-			cJSON_AddNumberToObject(out, "percentage", (double)tp);
+			if (tp >= 0)
+				cJSON_AddNumberToObject(out, "percentage",
+							(double)tp);
 			cJSON_AddStringToObject(out, "class", usage_class(tp));
 		}
 		cJSON_Delete(period_root);

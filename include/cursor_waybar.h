@@ -37,4 +37,5 @@ double cw_sum_today_cost_usd(cJSON *events_response);
 cJSON *cw_period_usage_fetch(const char *bearer_jwt);
 int cw_period_dashboard_metrics(cJSON *period_root, int *total_pct_out,
 				int *auto_pct_out, int *api_pct_out,
+				double *auto_raw_out, double *api_raw_out,
 				char *tip_append, size_t tip_cap);
