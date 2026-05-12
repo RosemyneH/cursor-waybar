@@ -1,0 +1,3 @@
+*.o
+/cursor-waybar-usage
+/.cache/

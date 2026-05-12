@@ -1,0 +1,23 @@
+#custom-cursor_usage {
+  padding: 0 6px;
+}
+
+#custom-cursor_usage.cursor-usage-low {
+  color: #a6e3a1;
+}
+
+#custom-cursor_usage.cursor-usage-mid {
+  color: #f9e2af;
+}
+
+#custom-cursor_usage.cursor-usage-high {
+  color: #f38ba8;
+}
+
+#custom-cursor_usage.cursor-usage-usagebased {
+  color: #89b4fa;
+}
+
+#custom-cursor_usage.cursor-usage-err {
+  color: #fab387;
+}
