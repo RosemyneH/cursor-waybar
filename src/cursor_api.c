@@ -46,8 +46,9 @@ cJSON *cw_api_get_stripe(const char *cookie_header)
 	return j;
 }
 
-cJSON *cw_api_post_usage_events(const char *cookie_header, long long start_ms,
-				long long end_ms)
+cJSON *cw_api_post_usage_events_page(const char *cookie_header,
+				     long long start_ms, long long end_ms,
+				     int page, int page_size)
 {
 	char url[256];
 	long code = 0;
@@ -57,6 +58,12 @@ cJSON *cw_api_post_usage_events(const char *cookie_header, long long start_ms,
 
 	if (!req)
 		return NULL;
+	if (page < 1)
+		page = 1;
+	if (page_size < 1)
+		page_size = 1;
+	if (page_size > 500)
+		page_size = 500;
 
 	cJSON_AddNumberToObject(req, "teamId", 0);
 	{
@@ -66,8 +73,8 @@ cJSON *cw_api_post_usage_events(const char *cookie_header, long long start_ms,
 		cJSON_AddStringToObject(req, "startDate", s);
 		cJSON_AddStringToObject(req, "endDate", e);
 	}
-	cJSON_AddNumberToObject(req, "page", 1);
-	cJSON_AddNumberToObject(req, "pageSize", 100);
+	cJSON_AddNumberToObject(req, "page", page);
+	cJSON_AddNumberToObject(req, "pageSize", page_size);
 
 	char *post = cJSON_PrintUnformatted(req);
 	cJSON_Delete(req);
@@ -90,4 +97,11 @@ cJSON *cw_api_post_usage_events(const char *cookie_header, long long start_ms,
 	resp = cJSON_Parse(body);
 	free(body);
 	return resp;
+}
+
+cJSON *cw_api_post_usage_events(const char *cookie_header, long long start_ms,
+				long long end_ms)
+{
+	return cw_api_post_usage_events_page(cookie_header, start_ms, end_ms, 1,
+					     100);
 }

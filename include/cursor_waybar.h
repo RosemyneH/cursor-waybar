@@ -26,6 +26,9 @@ char *cw_jwt_bearer_from_session(const char *session_or_jwt);
 
 cJSON *cw_api_get_usage(const char *cookie_header, const char *user_id);
 cJSON *cw_api_get_stripe(const char *cookie_header);
+cJSON *cw_api_post_usage_events_page(const char *cookie_header,
+				     long long start_ms, long long end_ms,
+				     int page, int page_size);
 cJSON *cw_api_post_usage_events(const char *cookie_header, long long start_ms,
 				long long end_ms);
 
