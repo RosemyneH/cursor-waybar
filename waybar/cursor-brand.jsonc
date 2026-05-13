@@ -1,0 +1,9 @@
+{
+  "//": "image# exec: script prints path then tooltip (newline-separated); see cursor-waybar-icon.",
+  "image#cursor_brand": {
+    "exec": "/bin/sh -c 'exec \"$HOME/.local/bin/cursor-waybar-icon\"'",
+    "interval": 600,
+    "size": 18,
+    "tooltip": true
+  }
+}
