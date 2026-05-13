@@ -8,6 +8,8 @@ OBJS := src/main.o src/arena.o src/http.o src/token.o src/cursor_api.o \
 
 FALLBACK_PNG := assets/cursor-icon-fallback.png
 WAYBAR_JSON := waybar/cursor-usage.jsonc waybar/cursor-brand.jsonc
+WAYBAR_HYDE_LAYOUT := waybar/layouts/hyprdots/05-cursor.jsonc
+WAYBAR_INCLUDE_CSS := waybar/includes/cursor-waybar.css
 
 .PHONY: all clean install install-setup install-fallback install-cursor-icon install-waybar-json
 
@@ -32,9 +34,13 @@ install: $(TARGET) install-setup install-fallback install-cursor-icon install-wa
 	install -d "$(DESTDIR)$(PREFIX)/bin"
 	install -m755 $(TARGET) "$(DESTDIR)$(PREFIX)/bin/"
 
-install-waybar-json: $(WAYBAR_JSON)
+install-waybar-json: $(WAYBAR_JSON) $(WAYBAR_HYDE_LAYOUT) $(WAYBAR_INCLUDE_CSS)
 	install -d "$(DESTDIR)$(PREFIX)/share/cursor-waybar/waybar"
 	install -m644 $(WAYBAR_JSON) "$(DESTDIR)$(PREFIX)/share/cursor-waybar/waybar/"
+	install -d "$(DESTDIR)$(PREFIX)/share/cursor-waybar/waybar/layouts/hyprdots"
+	install -m644 $(WAYBAR_HYDE_LAYOUT) "$(DESTDIR)$(PREFIX)/share/cursor-waybar/waybar/layouts/hyprdots/"
+	install -d "$(DESTDIR)$(PREFIX)/share/cursor-waybar/waybar/includes"
+	install -m644 $(WAYBAR_INCLUDE_CSS) "$(DESTDIR)$(PREFIX)/share/cursor-waybar/waybar/includes/"
 
 install-cursor-icon:
 	@if [ -f assets/cursor-icon.png ]; then \

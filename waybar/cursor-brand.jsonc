@@ -3,7 +3,7 @@
   "image#cursor_brand": {
     "exec": "/bin/sh -c 'exec \"$HOME/.local/bin/cursor-waybar-icon\"'",
     "interval": 600,
-    "size": 18,
+    "size": 24,
     "tooltip": true
   }
 }

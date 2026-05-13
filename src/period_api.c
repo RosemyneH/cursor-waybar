@@ -152,18 +152,18 @@ int cw_period_dashboard_metrics(cJSON *period_root, int *total_pct_out,
 			strftime(ds, sizeof ds, "%Y-%m-%d", &tms);
 			strftime(de, sizeof de, "%Y-%m-%d", &tme);
 			append_fmt(tip_append, tip_cap, &w,
-				   "Billing cycle: %s -> %s (%d %s)\n", ds, de,
+				   "Billing cycle: %s -> %s (%d %s)\r", ds, de,
 				   days_left,
 				   days_left == 1 ? "day left" : "days left");
 		}
 	}
 
-	append_fmt(tip_append, tip_cap, &w, "Total (plan): %.1f%%\n", total);
+	append_fmt(tip_append, tip_cap, &w, "Total (plan): %.1f%%\r", total);
 	if (isfinite(auto_pct))
 		append_fmt(tip_append, tip_cap, &w,
-			   "Auto + Composer: %.1f%%\n", auto_pct);
+			   "Auto + Composer: %.1f%%\r", auto_pct);
 	if (isfinite(api_pct))
-		append_fmt(tip_append, tip_cap, &w, "API: %.1f%%\n",
+		append_fmt(tip_append, tip_cap, &w, "API: %.1f%%\r",
 			   api_pct);
 
 	{
@@ -173,7 +173,7 @@ int cw_period_dashboard_metrics(cJSON *period_root, int *total_pct_out,
 		if (show_dm && strcmp(show_dm, "1") == 0 &&
 		    cJSON_IsString(dm) && dm->valuestring &&
 		    dm->valuestring[0])
-			append_fmt(tip_append, tip_cap, &w, "%s\n",
+			append_fmt(tip_append, tip_cap, &w, "%s\r",
 				   dm->valuestring);
 	}
 

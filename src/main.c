@@ -91,6 +91,16 @@ static int read_sqlite_access_token(char *out, size_t outsz)
 	return L > 0 ? 0 : -1;
 }
 
+static void tooltip_lf_to_cr(char *s)
+{
+	if (!s)
+		return;
+	for (; *s; ++s) {
+		if (*s == '\n')
+			*s = '\r';
+	}
+}
+
 static const char *default_token_path(char *buf, size_t buflen)
 {
 	const char *xdg = getenv("XDG_CONFIG_HOME");
@@ -107,10 +117,13 @@ static const char *default_token_path(char *buf, size_t buflen)
 
 static void emit_waybar_error(const char *msg)
 {
+	char tbuf[768];
 	cJSON *o = cJSON_CreateObject();
 	cJSON_AddStringToObject(o, "text", "?");
 	cJSON_AddStringToObject(o, "0", "?");
-	cJSON_AddStringToObject(o, "tooltip", msg);
+	snprintf(tbuf, sizeof tbuf, "%s", msg ? msg : "");
+	tooltip_lf_to_cr(tbuf);
+	cJSON_AddStringToObject(o, "tooltip", tbuf);
 	cJSON_AddStringToObject(o, "class", "cursor-usage-err");
 	char *s = cJSON_PrintUnformatted(o);
 	cJSON_Delete(o);
@@ -246,18 +259,18 @@ static void fill_usage_based_tooltip(char *tip, size_t tipcap, int markup,
 	if (!markup) {
 		if (have_cycle) {
 			snprintf(tip, tipcap,
-				 "Cursor usage-based: today ~ $%.4f USD "
-				 "(local midnight to now)\n"
-				 "Today's Tokens: %s\n"
-				 "\n"
-				 "Billing cycle: ~ $%.4f USD (%s → %s, %d %s)\n"
+				 "Cursor usage-based: today ~ $%.2f USD "
+				 "(local midnight to now)\r"
+				 "Today's Tokens: %s\r"
+				 "\r"
+				 "Billing cycle: ~ $%.2f USD (%s → %s, %d %s)\r"
 				 "Tokens this Cycle: %s",
 				 usd, tok_today, usd_cycle, ds, de, days_left,
 				 dayw, tok_cycle);
 		} else {
 			snprintf(tip, tipcap,
-				 "Cursor usage-based: today ~ $%.4f USD "
-				 "(local midnight to now)\n"
+				 "Cursor usage-based: today ~ $%.2f USD "
+				 "(local midnight to now)\r"
 				 "Today's Tokens: %s",
 				 usd, tok_today);
 		}
@@ -265,20 +278,20 @@ static void fill_usage_based_tooltip(char *tip, size_t tipcap, int markup,
 	}
 	if (have_cycle) {
 		snprintf(tip, tipcap,
-			 "Cursor usage-based: today ~ $%.4f USD "
-			 "(local midnight to now)\n"
+			 "Cursor usage-based: today ~ $%.2f USD "
+			 "(local midnight to now)\r"
 			 "<span alpha='0.85'>Today's Tokens:</span> "
-			 "<span weight='bold' foreground='%s'>%s</span>\n"
-			 "\n"
-			 "Billing cycle: ~ $%.4f USD (%s → %s, %d %s)\n"
+			 "<span weight='bold' foreground='%s'>%s</span>\r"
+			 "\r"
+			 "Billing cycle: ~ $%.2f USD (%s → %s, %d %s)\r"
 			 "<span alpha='0.85'>Tokens this Cycle:</span> "
 			 "<span weight='bold' foreground='%s'>%s</span>",
 			 usd, accent, tok_today, usd_cycle, ds, de, days_left,
 			 dayw, accent, tok_cycle);
 	} else {
 		snprintf(tip, tipcap,
-			 "Cursor usage-based: today ~ $%.4f USD "
-			 "(local midnight to now)\n"
+			 "Cursor usage-based: today ~ $%.2f USD "
+			 "(local midnight to now)\r"
 			 "<span alpha='0.85'>Today's Tokens:</span> "
 			 "<span weight='bold' foreground='%s'>%s</span>",
 			 usd, accent, tok_today);
@@ -382,11 +395,12 @@ int main(void)
 				pct = 100;
 			snprintf(text, sizeof text, "Cur %d%%", pct);
 			snprintf(tip, sizeof tip,
-				 "Cursor premium (gpt-4): %d / %d requests\n"
+				 "Cursor premium (gpt-4): %d / %d requests\r"
 				 "Billing: %s",
 				 used, lim,
 				 kind == CW_BILL_BUSINESS ? "business"
 							  : "pro");
+			tooltip_lf_to_cr(tip);
 			cJSON_AddStringToObject(out, "text", text);
 			cJSON_AddStringToObject(out, "0", text);
 			cJSON_AddStringToObject(out, "tooltip", tip);
@@ -467,6 +481,7 @@ int main(void)
 		if (cJSON_GetObjectItem(out, "class"))
 			cJSON_DeleteItemFromObject(out, "class");
 
+		tooltip_lf_to_cr(tip);
 		cJSON_AddStringToObject(out, "text", text);
 		cJSON_AddStringToObject(out, "0", text);
 		cJSON_AddStringToObject(out, "tooltip", tip);
@@ -495,7 +510,7 @@ int main(void)
 			}
 			if (prev[0]) {
 				snprintf(tip_combined, sizeof tip_combined,
-					 "%s\n---\n%s", ph, prev);
+					 "%s\r---\r%s", ph, prev);
 			} else {
 				snprintf(tip_combined, sizeof tip_combined, "%s", ph);
 			}
@@ -514,6 +529,7 @@ int main(void)
 			if (cJSON_GetObjectItem(out, "class"))
 				cJSON_DeleteItemFromObject(out, "class");
 
+			tooltip_lf_to_cr(tip_combined);
 			cJSON_AddStringToObject(out, "text", text);
 			cJSON_AddStringToObject(out, "0", text);
 			cJSON_AddStringToObject(out, "tooltip", tip_combined);

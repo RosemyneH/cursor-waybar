@@ -1,0 +1,37 @@
+window#waybar.top #custom-cursor_usage,
+window#waybar.bottom #custom-cursor_usage,
+window#waybar.left #custom-cursor_usage,
+window#waybar.right #custom-cursor_usage {
+    padding: 0 6px;
+    transition: all 0.3s cubic-bezier(.55, -0.68, .48, 1.682);
+}
+
+window#waybar.top #custom-cursor_usage:hover,
+window#waybar.bottom #custom-cursor_usage:hover,
+window#waybar.left #custom-cursor_usage:hover,
+window#waybar.right #custom-cursor_usage:hover {
+    background-color: @wb-hvr-bg;
+    color: @wb-hvr-fg;
+}
+
+window#waybar.top #image-cursor_brand,
+window#waybar.bottom #image-cursor_brand,
+window#waybar.left #image-cursor_brand,
+window#waybar.right #image-cursor_brand {
+    transition: all 0.3s cubic-bezier(.55, -0.68, .48, 1.682);
+}
+
+window#waybar.top #image-cursor_brand:hover,
+window#waybar.bottom #image-cursor_brand:hover,
+window#waybar.left #image-cursor_brand:hover,
+window#waybar.right #image-cursor_brand:hover {
+    background-color: @wb-hvr-bg;
+}
+
+#custom-cursor_usage.cursor-usage-low,
+#custom-cursor_usage.cursor-usage-mid,
+#custom-cursor_usage.cursor-usage-high,
+#custom-cursor_usage.cursor-usage-usagebased,
+#custom-cursor_usage.cursor-usage-err {
+    color: #ffffff;
+}

@@ -14,7 +14,7 @@ From a clone:
 bash scripts/setup
 ```
 
-That **builds**, **`make install`** (into `PREFIX`, default `~/.local`), copies **Waybar snippets** into `~/.config/waybar/modules/` if they are not there yet, then runs **token** setup (`cursor-waybar-setup`).
+That **builds**, **`make install`** (into `PREFIX`, default `~/.local`), copies **Waybar snippets** into `~/.config/waybar/modules/` if they are not there yet, refreshes the **HyDE** layout **`hyprdots/05-cursor`**, installs **`includes/cursor-waybar.css`** and prepends its **`@import`** to **`user-style.css`** when missing, then runs **token** setup (`cursor-waybar-setup`).
 
 Reload Waybar (`SIGUSR2` or your compositor’s reload).
 
@@ -22,11 +22,11 @@ Reload Waybar (`SIGUSR2` or your compositor’s reload).
 
 | Command | What it does |
 |--------|----------------|
-| `bash scripts/setup --no-token` | Build, install, Waybar snippets; no token prompts (you already have `~/.config/cursor-waybar/token`). |
-| `bash scripts/setup hyde` | Prints **HyDE** layout hints, then same as default (install + token). Does **not** copy into `~/.config/waybar/modules/` — you place the JSONC in your HyDE tree. |
-| `bash scripts/setup hyde --no-token` | HyDE hints + install; no token step. |
+| `bash scripts/setup --no-token` | Build, install, Waybar snippets + HyDE `05-cursor` layout; no token prompts (you already have `~/.config/cursor-waybar/token`). |
+| `bash scripts/setup hyde` | Prints a short HyDE layout-picker hint; otherwise same as default (modules, `05-cursor` layout, install + token). |
+| `bash scripts/setup hyde --no-token` | Hint + install; no token step. |
 
-**Custom Waybar config dir:** `WAYBAR_CONFIG_HOME=/path/to/waybar bash scripts/setup-waybar-snippets` (after `make install`).
+**Custom Waybar config dir:** `WAYBAR_CONFIG_HOME=/path/to/waybar bash scripts/setup-waybar-snippets` (after `make install`). **HyDE layout parent dir:** `WAYBAR_LAYOUTS_HOME` (default `$XDG_DATA_HOME/waybar/layouts`; layout is `hyprdots/05-cursor.jsonc`).
 
 **Only Waybar files:** `bash scripts/setup-waybar-snippets`  
 **Only token:** `cursor-waybar-setup` (or `bash scripts/cursor-waybar-setup` before install).
@@ -34,9 +34,14 @@ Reload Waybar (`SIGUSR2` or your compositor’s reload).
 ## Wire Waybar
 
 1. Ensure your main config **includes** the `modules/` dir (many setups already do).
-2. Add **`custom/cursor_usage`** and **`image#cursor_brand`** to a **group** in `config.jsonc` (exact layout is yours).
+2. **HyDE:** run `./scripts/setup` (or `setup-waybar-snippets`), then choose Waybar layout **`hyprdots/05-cursor`** in your bar / wbar config UI. That layout uses **`group/pill#left0`** (icon + usage) **before** workspaces; **`includes/cursor-waybar.css`** adds hover styling using HyDE’s `@wb-hvr-bg` / `@wb-hvr-fg`.
+3. **Other setups:** add the modules to a **group** in `config.jsonc` and **`@import "includes/cursor-waybar.css"`** from `user-style.css` (or copy rules from that file).
 
 Snippets use `"$HOME/.local/bin/cursor-waybar-usage"` and `cursor-waybar-icon`. Override paths in the JSONC if `PREFIX` is not `~/.local`.
+
+**Multiline tooltips:** [Waybar’s custom module wiki](https://github.com/Alexays/Waybar/wiki/Module:-Custom) expects **carriage return (`\r`)** between tooltip lines, not newline. `cursor-waybar-usage` emits `\r` and normalizes API text so the full billing / usage tooltip shows on hover.
+
+**Waybar 0.15.x:** Do **not** set `tooltip-format` to `"{tooltip}"` — that release formats tooltips with `{fmt}` but does **not** pass a `tooltip` format arg, so the placeholder is never filled and GTK gets bad markup (empty tooltip). Leave `tooltip-format` unset so Waybar uses the JSON `tooltip` string directly. Use **`"format": "{text}"`** (not `{0}`) for the same reason.
 
 **Icon wrong or missing:** set `CURSOR_ICON_PATH` to Cursor’s `code.png`, or see `scripts/cursor-waybar-icon`.
 

@@ -40,4 +40,60 @@ for f in cursor-usage.jsonc cursor-brand.jsonc; do
 	printf 'installed: %s\n' "$dest"
 done
 
+LAYOUT_NAME="05-cursor.jsonc"
+LAYOUT_REL="layouts/hyprdots/$LAYOUT_NAME"
+LAY_ROOT="${WAYBAR_LAYOUTS_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/waybar/layouts}"
+LAYOUT_DEST="$LAY_ROOT/hyprdots/$LAYOUT_NAME"
+
+LAYOUT_SRC=""
+if [[ -f "$ROOT/waybar/$LAYOUT_REL" ]]; then
+	LAYOUT_SRC="$ROOT/waybar/$LAYOUT_REL"
+elif [[ -n "${PREFIX:-}" && -f "${PREFIX}/share/cursor-waybar/waybar/$LAYOUT_REL" ]]; then
+	LAYOUT_SRC="${PREFIX}/share/cursor-waybar/waybar/$LAYOUT_REL"
+else
+	u="$(command -v cursor-waybar-usage 2>/dev/null || true)"
+	if [[ -n "$u" ]]; then
+		bd="$(cd "$(dirname "$u")" && pwd)"
+		_cand="$bd/../share/cursor-waybar/waybar/$LAYOUT_REL"
+		if [[ -f "$_cand" ]]; then
+			LAYOUT_SRC="$(cd "$(dirname "$_cand")" && pwd)/$LAYOUT_NAME"
+		fi
+	fi
+fi
+
+if [[ -n "$LAYOUT_SRC" && -f "$LAYOUT_SRC" ]]; then
+	mkdir -p "$(dirname "$LAYOUT_DEST")"
+	install -m644 "$LAYOUT_SRC" "$LAYOUT_DEST"
+	printf 'installed: %s\n' "$LAYOUT_DEST"
+else
+	printf '%s\n' "Note: HyDE layout $LAYOUT_NAME not found in repo or PREFIX/share (run from clone or make install)." >&2
+fi
+
+INC_SRC=""
+if [[ -f "$SHARE/includes/cursor-waybar.css" ]]; then
+	INC_SRC="$SHARE/includes/cursor-waybar.css"
+elif [[ -f "$ROOT/waybar/includes/cursor-waybar.css" ]]; then
+	INC_SRC="$ROOT/waybar/includes/cursor-waybar.css"
+fi
+
+if [[ -n "$INC_SRC" && -f "$INC_SRC" ]]; then
+	mkdir -p "$CFG/includes"
+	install -m644 "$INC_SRC" "$CFG/includes/cursor-waybar.css"
+	printf 'installed: %s\n' "$CFG/includes/cursor-waybar.css"
+	US="$CFG/user-style.css"
+	IMPORT='@import "includes/cursor-waybar.css";'
+	if [[ -f "$US" ]]; then
+		if ! grep -Fq 'includes/cursor-waybar.css' "$US"; then
+			{ printf '%s\n' "$IMPORT"; cat "$US"; } >"${US}.tmp.$$" && mv "${US}.tmp.$$" "$US"
+			printf 'prepended @import in %s\n' "$US"
+		fi
+	else
+		printf '%s\n' "$IMPORT" >"$US"
+		printf 'created %s\n' "$US"
+	fi
+else
+	printf '%s\n' "Note: cursor-waybar.css not found under waybar/includes/ (make install from this repo)." >&2
+fi
+
 printf '\nAdd module names to your Waybar config (e.g. include the files or list custom/cursor_usage and image#cursor_brand in a group).\n'
+printf '%s\n' "HyDE: choose Waybar layout hyprdots/05-cursor (left0 = Cursor icon + usage, then workspaces)."

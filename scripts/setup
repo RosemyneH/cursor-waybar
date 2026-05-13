@@ -7,9 +7,9 @@ cd "$ROOT"
 
 usage() {
 	printf '%s\n' "Usage: $0 [--no-token] [hyde]" >&2
-	printf '%s\n' "  (default)  build, install, install Waybar snippets under ~/.config/waybar/modules/, run token setup" >&2
+	printf '%s\n' "  (default)  build, install, Waybar modules + HyDE layout hyprdots/05-cursor, token setup" >&2
 	printf '%s\n' "  --no-token same but skip cursor-waybar-setup" >&2
-	printf '%s\n' "  hyde       print HyDE layout hints; optional: --no-token" >&2
+	printf '%s\n' "  hyde       print HyDE picker hint; optional: --no-token" >&2
 	exit 1
 }
 
@@ -25,18 +25,13 @@ for a in "$@"; do
 done
 
 if [[ "$MODE" == "hyde" ]]; then
-	printf '%s\n' "HyDE: put the JSONC from this repo’s waybar/ next to your other Waybar modules, and add"
-	printf '%s\n' "  custom/cursor_usage  and  image#cursor_brand"
-	printf '%s\n' "to your layout group (e.g. pill#cursor modules). Hyde regens can drop custom names — re-add after regen."
-	printf '%s\n' "Paths in upstream HyDE trees often mirror: .local/share/waybar/modules/ and layouts/hyprdots/."
+	printf '%s\n' "HyDE: in Waybar layout / wbar config, select layout hyprdots/05-cursor (installed under \$XDG_DATA_HOME/waybar/layouts/hyprdots/ by setup-waybar-snippets)."
 fi
 
 make
 make install
 
-if [[ "$MODE" != "hyde" ]]; then
-	bash "$HERE/setup-waybar-snippets"
-fi
+bash "$HERE/setup-waybar-snippets"
 
 if [[ "$NO_TOKEN" == 0 ]]; then
 	if command -v cursor-waybar-setup >/dev/null 2>&1; then
@@ -46,4 +41,4 @@ if [[ "$NO_TOKEN" == 0 ]]; then
 	fi
 fi
 
-printf '\nReload Waybar. Mock check: CURSOR_WAYBAR_MOCK_JSON='"'"'{"text":"Cur 0%","tooltip":"ok","percentage":0}'"'"' cursor-waybar-usage\n'
+printf '\n%s\n' 'Reload Waybar. Mock check: CURSOR_WAYBAR_MOCK_JSON='"'"'{"text":"Cur 0%","tooltip":"ok","percentage":0}'"'"' cursor-waybar-usage'
