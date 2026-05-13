@@ -3,21 +3,21 @@
 }
 
 #custom-cursor_usage.cursor-usage-low {
-  color: #a6e3a1;
+  color: #ffffff;
 }
 
 #custom-cursor_usage.cursor-usage-mid {
-  color: #f9e2af;
+  color: #ffffff;
 }
 
 #custom-cursor_usage.cursor-usage-high {
-  color: #f38ba8;
+  color: #ffffff;
 }
 
 #custom-cursor_usage.cursor-usage-usagebased {
-  color: #89b4fa;
+  color: #ffffff;
 }
 
 #custom-cursor_usage.cursor-usage-err {
-  color: #fab387;
+  color: #ffffff;
 }
