@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Writes ~/.config/cursor-waybar/token (0600) from SQLite or paste.
+# Writes ~/.config/cursor-waybar/token (0600) from Cursor's SQLite DB or paste.
 set -e
 
 die() { printf '%s\n' "$*" >&2; exit 1; }
@@ -7,6 +7,10 @@ die() { printf '%s\n' "$*" >&2; exit 1; }
 resolve_usage_bin() {
 	if [[ -n "${CURSOR_WAYBAR_USAGE_BIN:-}" && -x "${CURSOR_WAYBAR_USAGE_BIN}" ]]; then
 		printf '%s' "$CURSOR_WAYBAR_USAGE_BIN"
+		return 0
+	fi
+	if command -v cursor-waybar-usage >/dev/null 2>&1; then
+		command -v cursor-waybar-usage
 		return 0
 	fi
 	local d
@@ -17,10 +21,6 @@ resolve_usage_bin() {
 	fi
 	if [[ -x "$d/../cursor-waybar-usage" ]]; then
 		printf '%s' "$d/../cursor-waybar-usage"
-		return 0
-	fi
-	if command -v cursor-waybar-usage >/dev/null 2>&1; then
-		command -v cursor-waybar-usage
 		return 0
 	fi
 	return 1
@@ -73,7 +73,7 @@ printf '\nWrote %s (mode 600).\n' "$TOKEN_FILE"
 
 USAGE_BIN="$(resolve_usage_bin)" || die "cursor-waybar-usage not found. Build/install with: make install"
 
-printf '\nVerifying (no CURSOR_READ_SQLITE needed if this file exists)…\n'
+printf '\nVerifying (reading token file only)…\n'
 unset CURSOR_SESSION_TOKEN CURSOR_ACCESS_TOKEN CURSOR_TOKEN_FILE CURSOR_READ_SQLITE 2>/dev/null || true
 out="$("$USAGE_BIN" 2>/dev/null || true)"
 if printf '%s' "$out" | grep -q '"class":"cursor-usage-err"'; then
@@ -101,4 +101,4 @@ printf '%s\n' "not the shell. Set the exec field to this path:"
 printf '\n  %s\n\n' "$usage_abs"
 printf '%s\n' "Example (JSON fragment — paste only inside your Waybar config file):"
 printf '  "exec": "%s"\n\n' "$usage_abs"
-printf '%s\n' "Remove any CURSOR_READ_SQLITE=1 shell wrapper around exec if you still have one."
+printf '%s\n' "Optional: set CURSOR_READ_SQLITE=1 on exec if you want the binary to read the DB each run instead of the token file."
