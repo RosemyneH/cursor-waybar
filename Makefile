@@ -7,8 +7,9 @@ OBJS := src/main.o src/http.o src/token.o src/cursor_api.o src/billing.o \
 	src/period_api.o third_party/cJSON.o
 
 FALLBACK_PNG := assets/cursor-icon-fallback.png
+WAYBAR_JSON := waybar/cursor-usage.jsonc waybar/cursor-brand.jsonc
 
-.PHONY: all clean install install-setup install-fallback install-cursor-icon
+.PHONY: all clean install install-setup install-fallback install-cursor-icon install-waybar-json
 
 all: $(TARGET) $(FALLBACK_PNG)
 
@@ -27,9 +28,13 @@ third_party/cJSON.o: third_party/cJSON.c third_party/cJSON.h
 clean:
 	rm -f $(OBJS) $(TARGET)
 
-install: $(TARGET) install-setup install-fallback install-cursor-icon
+install: $(TARGET) install-setup install-fallback install-cursor-icon install-waybar-json
 	install -d "$(DESTDIR)$(PREFIX)/bin"
 	install -m755 $(TARGET) "$(DESTDIR)$(PREFIX)/bin/"
+
+install-waybar-json: $(WAYBAR_JSON)
+	install -d "$(DESTDIR)$(PREFIX)/share/cursor-waybar/waybar"
+	install -m644 $(WAYBAR_JSON) "$(DESTDIR)$(PREFIX)/share/cursor-waybar/waybar/"
 
 install-cursor-icon:
 	@if [ -f assets/cursor-icon.png ]; then \

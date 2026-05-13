@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CFG="${WAYBAR_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/waybar}"
+MODS="$CFG/modules"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$HERE/.." && pwd)"
+SHARE="${CURSOR_WAYBAR_WAYBAR_SNIPPETS:-}"
+
+if [[ -z "$SHARE" ]]; then
+	if [[ -d "$ROOT/waybar" ]]; then
+		SHARE="$ROOT/waybar"
+	elif [[ -n "${PREFIX:-}" && -d "${PREFIX}/share/cursor-waybar/waybar" ]]; then
+		SHARE="${PREFIX}/share/cursor-waybar/waybar"
+	else
+		u="$(command -v cursor-waybar-usage 2>/dev/null || true)"
+		if [[ -n "$u" ]]; then
+			bd="$(cd "$(dirname "$u")" && pwd)"
+			if [[ -d "$bd/../share/cursor-waybar/waybar" ]]; then
+				SHARE="$(cd "$bd/../share/cursor-waybar/waybar" && pwd)"
+			fi
+		fi
+	fi
+fi
+
+[[ -n "$SHARE" && -d "$SHARE" ]] || {
+	printf '%s\n' "Could not find waybar snippets (repo waybar/ or PREFIX/share/cursor-waybar/waybar)." >&2
+	exit 1
+}
+
+mkdir -p "$MODS"
+for f in cursor-usage.jsonc cursor-brand.jsonc; do
+	[[ -f "$SHARE/$f" ]] || continue
+	dest="$MODS/$f"
+	if [[ -f "$dest" ]]; then
+		printf 'exists (skip): %s\n' "$dest"
+		continue
+	fi
+	install -m644 "$SHARE/$f" "$dest"
+	printf 'installed: %s\n' "$dest"
+done
+
+printf '\nAdd module names to your Waybar config (e.g. include the files or list custom/cursor_usage and image#cursor_brand in a group).\n'
