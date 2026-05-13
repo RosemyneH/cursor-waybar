@@ -1,10 +1,12 @@
 {
   "//_1": "HyDE: use layout hyprdots/05-cursor; load cursor-brand.jsonc for image#cursor_brand + custom-cursor_usage.jsonc.",
   "//_2": "This file only defines the custom module; layout lists place it on the bar.",
+  "//_3": "escape false: allows Pango markup in JSON tooltip when CURSOR_WAYBAR_TOOLTIP_MARKUP=1 (optional CURSOR_WAYBAR_TOOLTIP_ACCENT=#hex).",
   "custom/cursor_usage": {
     "return-type": "json",
     "exec": "/bin/sh -c 'exec \"$HOME/.local/bin/cursor-waybar-usage\"'",
     "interval": 120,
+    "escape": false,
     "format": "{0}",
     "tooltip": true,
     "tooltip-format": "{tooltip}",

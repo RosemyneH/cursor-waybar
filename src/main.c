@@ -170,6 +170,121 @@ static void build_auto_api_pill(char *dst, size_t cap, double auto_raw,
 		snprintf(dst, cap, "—");
 }
 
+static int waybar_tooltip_markup(void)
+{
+	const char *e = getenv("CURSOR_WAYBAR_TOOLTIP_MARKUP");
+	return e && e[0] == '1';
+}
+
+static const char *tooltip_token_accent(void)
+{
+	const char *c = getenv("CURSOR_WAYBAR_TOOLTIP_ACCENT");
+	return (c && c[0]) ? c : "#7dcfff";
+}
+
+static void fmt_tokens_pretty(char *dst, size_t cap, long long n)
+{
+	char buf[32];
+	size_t L;
+
+	if (!dst || cap < 4) {
+		if (dst && cap)
+			dst[0] = '\0';
+		return;
+	}
+	if (n <= 0) {
+		snprintf(dst, cap, "0");
+		return;
+	}
+	if (n >= 1000000000LL)
+		snprintf(buf, sizeof buf, "%.1fB", (double)n / 1e9);
+	else if (n >= 1000000LL)
+		snprintf(buf, sizeof buf, "%.1fM", (double)n / 1e6);
+	else if (n >= 1000LL)
+		snprintf(buf, sizeof buf, "%.1fK", (double)n / 1e3);
+	else {
+		snprintf(dst, cap, "%lld", (long long)n);
+		return;
+	}
+	L = strlen(buf);
+	if (L >= 3 && buf[L - 3] == '.' && buf[L - 2] == '0' &&
+	    (buf[L - 1] == 'K' || buf[L - 1] == 'M' || buf[L - 1] == 'B'))
+		memmove(buf + L - 3, buf + L - 1, 2);
+	snprintf(dst, cap, "%s", buf);
+}
+
+static void xml_escape(const char *in, char *out, size_t cap)
+{
+	size_t w = 0;
+
+	if (!out || cap < 2)
+		return;
+	for (; in && *in && w + 6 < cap; in++) {
+		if (*in == '&') {
+			memcpy(out + w, "&amp;", 5);
+			w += 5;
+		} else if (*in == '<') {
+			memcpy(out + w, "&lt;", 4);
+			w += 4;
+		} else if (*in == '>') {
+			memcpy(out + w, "&gt;", 4);
+			w += 4;
+		} else
+			out[w++] = (char)*in;
+	}
+	out[w] = '\0';
+}
+
+static void fill_usage_based_tooltip(char *tip, size_t tipcap, int markup,
+				     const char *accent, double usd,
+				     const char *tok_today, int have_cycle,
+				     double usd_cycle, const char *tok_cycle,
+				     const char *ds, const char *de, int days_left)
+{
+	const char *dayw = days_left == 1 ? "day left" : "days left";
+
+	if (!markup) {
+		if (have_cycle) {
+			snprintf(tip, tipcap,
+				 "Cursor usage-based: today ~ $%.4f USD "
+				 "(local midnight to now)\n"
+				 "Today's Tokens: %s\n"
+				 "\n"
+				 "Billing cycle: ~ $%.4f USD (%s → %s, %d %s)\n"
+				 "Tokens this Cycle: %s",
+				 usd, tok_today, usd_cycle, ds, de, days_left,
+				 dayw, tok_cycle);
+		} else {
+			snprintf(tip, tipcap,
+				 "Cursor usage-based: today ~ $%.4f USD "
+				 "(local midnight to now)\n"
+				 "Today's Tokens: %s",
+				 usd, tok_today);
+		}
+		return;
+	}
+	if (have_cycle) {
+		snprintf(tip, tipcap,
+			 "Cursor usage-based: today ~ $%.4f USD "
+			 "(local midnight to now)\n"
+			 "<span alpha='0.85'>Today's Tokens:</span> "
+			 "<span weight='bold' foreground='%s'>%s</span>\n"
+			 "\n"
+			 "Billing cycle: ~ $%.4f USD (%s → %s, %d %s)\n"
+			 "<span alpha='0.85'>Tokens this Cycle:</span> "
+			 "<span weight='bold' foreground='%s'>%s</span>",
+			 usd, accent, tok_today, usd_cycle, ds, de, days_left,
+			 dayw, accent, tok_cycle);
+	} else {
+		snprintf(tip, tipcap,
+			 "Cursor usage-based: today ~ $%.4f USD "
+			 "(local midnight to now)\n"
+			 "<span alpha='0.85'>Today's Tokens:</span> "
+			 "<span weight='bold' foreground='%s'>%s</span>",
+			 usd, accent, tok_today);
+	}
+}
+
 int main(void)
 {
 	const char *mock = getenv("CURSOR_WAYBAR_MOCK_JSON");
@@ -255,8 +370,8 @@ int main(void)
 
 	cJSON *out = cJSON_CreateObject();
 	char text[64];
-	char tip[960];
-	char tip_combined[2048];
+	char tip[2048];
+	char tip_combined[8192];
 
 	if ((kind == CW_BILL_PRO || kind == CW_BILL_BUSINESS) && usage) {
 		int used = 0, lim = 0;
@@ -319,28 +434,27 @@ int main(void)
 		else
 			snprintf(text, sizeof text, "Cur $%.2f", usd);
 
-		if (have_cycle && ds[0] && de[0]) {
+		{
 			int days_left = 0;
-			if (cyc1 > now_ms) {
+			int show_cycle = have_cycle && ds[0] && de[0];
+			char tok_td[24], tok_cy[24] = "";
+			int mk = waybar_tooltip_markup();
+			const char *accent = tooltip_token_accent();
+
+			fmt_tokens_pretty(tok_td, sizeof tok_td, today_tok);
+			if (show_cycle)
+				fmt_tokens_pretty(tok_cy, sizeof tok_cy, cycle_tok);
+			if (show_cycle && cyc1 > now_ms) {
 				long long delta = cyc1 - now_ms;
 				days_left = (int)((delta + 86400000LL - 1) /
 						   86400000LL);
 				if (days_left > 999)
 					days_left = 999;
 			}
-			snprintf(tip, sizeof tip,
-				 "Cursor usage-based: today ~ $%.4f USD · "
-				 "~ %lld tokens (local midnight to now)\n"
-				 "Billing cycle: ~ $%.4f USD · ~ %lld tokens "
-				 "(%s → %s, %d %s)",
-				 usd, today_tok, usd_cycle, cycle_tok, ds, de,
-				 days_left,
-				 days_left == 1 ? "day left" : "days left");
-		} else
-			snprintf(tip, sizeof tip,
-				 "Cursor usage-based: today ~ $%.4f USD · "
-				 "~ %lld tokens (local midnight to now)",
-				 usd, today_tok);
+			fill_usage_based_tooltip(tip, sizeof tip, mk, accent, usd,
+						   tok_td, show_cycle, usd_cycle,
+						   tok_cy, ds, de, days_left);
+		}
 
 		if (cJSON_GetObjectItem(out, "text"))
 			cJSON_DeleteItemFromObject(out, "text");
@@ -369,14 +483,22 @@ int main(void)
 						sizeof period_buf) == 0) {
 			const char *prev = "";
 			cJSON *ot = cJSON_GetObjectItem(out, "tooltip");
+			int mk = waybar_tooltip_markup();
+			char phbuf[4096];
+			const char *ph = period_buf;
+
 			if (cJSON_IsString(ot) && ot->valuestring)
 				prev = ot->valuestring;
-			if (prev[0])
+			if (mk) {
+				xml_escape(period_buf, phbuf, sizeof phbuf);
+				ph = phbuf;
+			}
+			if (prev[0]) {
 				snprintf(tip_combined, sizeof tip_combined,
-					 "%s\n---\n%s", period_buf, prev);
-			else
-				snprintf(tip_combined, sizeof tip_combined, "%s",
-					 period_buf);
+					 "%s\n---\n%s", ph, prev);
+			} else {
+				snprintf(tip_combined, sizeof tip_combined, "%s", ph);
+			}
 
 			build_auto_api_pill(text, sizeof text, auto_raw, api_raw,
 					    tp);
