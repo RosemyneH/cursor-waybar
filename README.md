@@ -1,5 +1,7 @@
 # cursor-waybar
 
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/e0323cdb-7245-45ad-aaec-2f74e148538f" />
+
 Waybar helper: shows **Cursor** usage in the bar (`custom/cursor_usage`) and optional **app icon** (`image#cursor_brand`). Talks to the same unofficial flow as [cursor-usage-monitor](https://github.com/lixwen/cursor-usage-monitor); APIs can change anytime.
 
 ## Quick setup
