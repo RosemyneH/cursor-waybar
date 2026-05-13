@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+# Prints absolute path to Cursor Waybar icon (bundled code.png or themed PNG from .desktop).
+# Falls back to bundled PNG so Waybar image# always gets a valid path.
+
+emit() {
+	local p="$1"
+	if command -v realpath >/dev/null 2>&1; then
+		p=$(realpath "$p" 2>/dev/null || printf '%s' "$p")
+	fi
+	printf '%s\n%s\n' "$p" "${CURSOR_WAYBAR_ICON_TOOLTIP:-Cursor}"
+	exit 0
+}
+
+emit_if() {
+	[[ -n "$1" && -f "$1" ]] && emit "$1"
+}
+
+# Reject VS Code Linux layout (/usr/share/code/...) unless path clearly says Cursor.
+is_cursor_code_png() {
+	local l
+	[[ -f "$1" ]] || return 1
+	l=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+	[[ "$l" == *cursor* ]] && return 0
+	[[ "$l" == *com.cursor.cursor* ]] && return 0
+	[[ "$l" == */code/resources/app/resources/linux/code.png ]] && return 1
+	return 0
+}
+
+emit_if_cursor() {
+	is_cursor_code_png "$1" && emit "$1"
+}
+
+walk_from_binary() {
+	local real d
+	[[ -n "${1:-}" ]] || return 0
+	[[ -e "$1" ]] || return 0
+	real=$(readlink -f "$1" 2>/dev/null || printf '%s' "$1")
+	d=$(dirname "$real")
+	while [[ "$d" != "/" ]]; do
+		emit_if_cursor "$d/resources/app/resources/linux/code.png"
+		d=$(dirname "$d")
+	done
+}
+
+resolve_exec_from_desktop() {
+	local f ex first bin
+	for f in \
+		/usr/share/applications/cursor.desktop \
+		/usr/share/applications/com.cursor.Cursor.desktop \
+		/usr/share/applications/com.cursor.cursor.desktop \
+		"$HOME/.local/share/applications/cursor.desktop" \
+		"$HOME/.local/share/applications/com.cursor.Cursor.desktop" \
+		/var/lib/flatpak/exports/share/applications/com.cursor.Cursor.desktop \
+		"${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/exports/share/applications/com.cursor.Cursor.desktop"
+	do
+		[[ -f "$f" ]] || continue
+		ex=$(grep -m1 '^Exec=' "$f" 2>/dev/null | cut -d= -f2- | tr -d '\r')
+		[[ -n "$ex" ]] || continue
+		ex="${ex#env }"
+		first="${ex%% *}"
+		first="${first#\"}"
+		first="${first%\"}"
+		[[ -z "$first" ]] && continue
+		if [[ "$first" == /* ]]; then
+			walk_from_binary "$first"
+		else
+			bin=$(command -v "$first" 2>/dev/null) || continue
+			walk_from_binary "$bin"
+		fi
+	done
+}
+
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)
+
+if [[ -n "${CURSOR_ICON_PATH:-}" ]]; then
+	emit_if "${CURSOR_ICON_PATH}"
+fi
+
+emit_if_cursor "/usr/share/cursor/resources/app/resources/linux/code.png"
+emit_if_cursor "/usr/lib/cursor/resources/app/resources/linux/code.png"
+emit_if_cursor "/opt/cursor/resources/app/resources/linux/code.png"
+emit_if_cursor "/opt/Cursor/resources/app/resources/linux/code.png"
+emit_if_cursor "/usr/share/cursor-bin/resources/app/resources/linux/code.png"
+emit_if_cursor "/snap/cursor/current/usr/share/cursor/resources/app/resources/linux/code.png"
+emit_if_cursor "/var/lib/flatpak/app/com.cursor.Cursor/current/active/files/extra/resources/app/resources/linux/code.png"
+emit_if_cursor "${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/app/com.cursor.Cursor/current/active/files/extra/resources/app/resources/linux/code.png"
+
+resolve_exec_from_desktop
+
+for name in cursor cursor-bin Cursor; do
+	bin=$(command -v "$name" 2>/dev/null) || continue
+	walk_from_binary "$bin"
+done
+
+for desktop in \
+	/usr/share/applications/cursor.desktop \
+	/usr/share/applications/com.cursor.Cursor.desktop \
+	/usr/share/applications/com.cursor.cursor.desktop \
+	"$HOME/.local/share/applications/cursor.desktop" \
+	"$HOME/.local/share/applications/com.cursor.Cursor.desktop" \
+	/var/lib/flatpak/exports/share/applications/com.cursor.Cursor.desktop \
+	"${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/exports/share/applications/com.cursor.Cursor.desktop"
+do
+	[[ -f "$desktop" ]] || continue
+	icon=$(grep -m1 '^Icon=' "$desktop" 2>/dev/null | cut -d= -f2- | tr -d '\r')
+	[[ -n "$icon" ]] || continue
+	if [[ "$icon" == /* ]]; then
+		[[ "$icon" != *.svg ]] && emit_if "$icon"
+		continue
+	fi
+	emit_if "/usr/share/pixmaps/${icon}.png"
+	for sz in 512 256 128 96 64 48 32 24 22 16; do
+		emit_if "/usr/share/icons/hicolor/${sz}x${sz}/apps/${icon}.png"
+		emit_if "/var/lib/flatpak/exports/share/icons/hicolor/${sz}x${sz}/apps/${icon}.png"
+		emit_if "${XDG_DATA_HOME:-$HOME/.local/share}/flatpak/exports/share/icons/hicolor/${sz}x${sz}/apps/${icon}.png"
+	done
+done
+
+if [[ -d /nix/store ]]; then
+	while IFS= read -r hit; do
+		[[ -n "$hit" ]] && emit_if_cursor "$hit"
+	done < <(find /nix/store -maxdepth 8 -path '*/resources/app/resources/linux/code.png' -type f 2>/dev/null | head -n 8)
+fi
+
+for root in /usr/share /usr/lib /opt /usr/local/share /usr/local/lib "${XDG_DATA_HOME:-$HOME/.local/share}"; do
+	[[ -d "$root" ]] || continue
+	while IFS= read -r hit; do
+		[[ -n "$hit" ]] && emit_if_cursor "$hit"
+	done < <(find "$root" -path '*/resources/app/resources/linux/code.png' -type f 2>/dev/null | head -n 12)
+done
+
+if command -v timeout >/dev/null 2>&1; then
+	while IFS= read -r hit; do
+		[[ -n "$hit" ]] && emit_if_cursor "$hit"
+	done < <(timeout 4 find "$HOME" \
+		\( -path '*/.cache/*' -o -path '*/.mozilla/*' -o -path '*/node_modules/*' \) -prune -o \
+		\( -path '*/resources/app/resources/linux/code.png' -type f \) -print 2>/dev/null | head -n 15)
+else
+	while IFS= read -r hit; do
+		[[ -n "$hit" ]] && emit_if_cursor "$hit"
+	done < <(find "$HOME/.local/share" "$HOME/.config" "$HOME/Applications" "$HOME/.local/bin" \
+		-path '*/resources/app/resources/linux/code.png' -type f 2>/dev/null | head -n 15)
+fi
+
+emit_if "$HERE/../assets/cursor-icon.png"
+emit_if "$HERE/../share/cursor-waybar/cursor-icon.png"
+emit_if "${XDG_DATA_HOME:-$HOME/.local/share}/cursor-waybar/cursor-icon.png"
+emit_if "$HERE/../share/cursor-waybar/cursor-icon-fallback.png"
+emit_if "$HERE/../assets/cursor-icon-fallback.png"
+emit_if "${XDG_DATA_HOME:-$HOME/.local/share}/cursor-waybar/cursor-icon-fallback.png"
+
+printf '%s\n' "cursor-waybar-icon: install with 'make install' (fallback PNG) or set CURSOR_ICON_PATH to Cursor code.png" >&2
+exit 1
