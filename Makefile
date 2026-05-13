@@ -3,8 +3,8 @@ CFLAGS += -std=c11 -O2 -Wall -Wextra -Iinclude -Ithird_party
 LDFLAGS += -lcurl -lm
 
 TARGET := cursor-waybar-usage
-OBJS := src/main.o src/http.o src/token.o src/cursor_api.o src/billing.o \
-	src/period_api.o third_party/cJSON.o
+OBJS := src/main.o src/arena.o src/http.o src/token.o src/cursor_api.o \
+	src/billing.o src/period_api.o third_party/cJSON.o
 
 FALLBACK_PNG := assets/cursor-icon-fallback.png
 WAYBAR_JSON := waybar/cursor-usage.jsonc waybar/cursor-brand.jsonc
@@ -19,7 +19,7 @@ $(FALLBACK_PNG): scripts/gen_fallback_icon.py
 $(TARGET): $(OBJS)
 	$(CC) -o $@ $(OBJS) $(LDFLAGS)
 
-src/%.o: src/%.c include/cursor_waybar.h
+src/%.o: src/%.c include/cursor_waybar.h include/cw_arena.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 third_party/cJSON.o: third_party/cJSON.c third_party/cJSON.h
