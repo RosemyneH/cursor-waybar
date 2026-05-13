@@ -109,3 +109,29 @@ double cw_sum_today_cost_usd(cJSON *events_response)
 	}
 	return sum;
 }
+
+double cw_sum_usage_cost_usd_in_range(const char *cookie_header,
+				      long long start_ms, long long end_ms,
+				      int max_pages)
+{
+	double sum = 0.0;
+	int p;
+
+	if (!cookie_header || start_ms >= end_ms || max_pages < 1)
+		return 0.0;
+
+	for (p = 1; p <= max_pages; p++) {
+		cJSON *ev = cw_api_post_usage_events_page(
+			cookie_header, start_ms, end_ms, p, 100);
+		if (!ev)
+			break;
+		sum += cw_sum_today_cost_usd(ev);
+		cJSON *arr =
+			cJSON_GetObjectItemCaseSensitive(ev, "usageEventsDisplay");
+		int n = cJSON_IsArray(arr) ? cJSON_GetArraySize(arr) : 0;
+		cJSON_Delete(ev);
+		if (n < 100)
+			break;
+	}
+	return sum;
+}

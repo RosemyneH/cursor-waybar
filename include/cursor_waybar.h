@@ -36,9 +36,14 @@ int cw_usage_premium_gpt4(cJSON *usage_root, int *used_out, int *limit_out);
 int cw_detect_billing(cJSON *usage_root, cJSON *stripe_root,
 		      cw_billing_kind_t *kind_out);
 double cw_sum_today_cost_usd(cJSON *events_response);
+double cw_sum_usage_cost_usd_in_range(const char *cookie_header,
+				       long long start_ms, long long end_ms,
+				       int max_pages);
 
 cJSON *cw_period_usage_fetch(const char *bearer_jwt);
 int cw_period_dashboard_metrics(cJSON *period_root, int *total_pct_out,
 				int *auto_pct_out, int *api_pct_out,
 				double *auto_raw_out, double *api_raw_out,
 				char *tip_append, size_t tip_cap);
+int cw_period_billing_cycle_ms(cJSON *period_root, long long *start_ms_out,
+				long long *end_ms_out);

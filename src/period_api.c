@@ -169,3 +169,23 @@ int cw_period_dashboard_metrics(cJSON *period_root, int *total_pct_out,
 
 	return 0;
 }
+
+int cw_period_billing_cycle_ms(cJSON *period_root, long long *start_ms_out,
+			       long long *end_ms_out)
+{
+	cJSON *bs;
+	cJSON *be;
+
+	if (!period_root || !start_ms_out || !end_ms_out)
+		return -1;
+	bs = cJSON_GetObjectItemCaseSensitive(period_root, "billingCycleStart");
+	be = cJSON_GetObjectItemCaseSensitive(period_root, "billingCycleEnd");
+	if (!cJSON_IsString(bs) || !bs->valuestring ||
+	    !cJSON_IsString(be) || !be->valuestring)
+		return -1;
+	*start_ms_out = atoll(bs->valuestring);
+	*end_ms_out = atoll(be->valuestring);
+	if (*start_ms_out <= 0LL || *end_ms_out <= *start_ms_out)
+		return -1;
+	return 0;
+}
