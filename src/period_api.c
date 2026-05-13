@@ -11,7 +11,7 @@
 #define CW_PERIOD_URL                                                          \
 	"https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage"
 
-cJSON *cw_period_usage_fetch(const char *bearer_jwt)
+cJSON *cw_period_usage_fetch(cw_arena *arena, const char *bearer_jwt)
 {
 	long code = 0;
 	char *body = NULL;
@@ -20,15 +20,12 @@ cJSON *cw_period_usage_fetch(const char *bearer_jwt)
 	if (!bearer_jwt || !bearer_jwt[0])
 		return NULL;
 
-	if (cw_https_bearer_post(CW_PERIOD_URL, bearer_jwt, "{}", &code, &body) !=
-	    0)
+	if (cw_https_bearer_post(CW_PERIOD_URL, bearer_jwt, "{}", &code, &body,
+				 arena) != 0)
 		return NULL;
-	if (code != 200 || !body) {
-		free(body);
+	if (code != 200 || !body)
 		return NULL;
-	}
 	j = cJSON_Parse(body);
-	free(body);
 	return j;
 }
 

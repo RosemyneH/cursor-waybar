@@ -38,11 +38,12 @@ static size_t b64_value(unsigned char c)
 	return 64;
 }
 
-static int b64url_decode(const char *in, unsigned char **out, size_t *out_len)
+static int b64url_decode(cw_arena *arena, const char *in, unsigned char **out,
+			size_t *out_len)
 {
 	size_t inlen = strlen(in);
 	size_t pad = (4 - (inlen % 4)) % 4;
-	char *buf = malloc(inlen + pad + 1);
+	char *buf = cw_arena_alloc(arena, inlen + pad + 1);
 	if (!buf)
 		return -1;
 	memcpy(buf, in, inlen);
@@ -58,11 +59,9 @@ static int b64url_decode(const char *in, unsigned char **out, size_t *out_len)
 	}
 
 	size_t oalloc = (inlen / 4) * 3;
-	unsigned char *dec = malloc(oalloc + 1);
-	if (!dec) {
-		free(buf);
+	unsigned char *dec = cw_arena_alloc(arena, oalloc + 1);
+	if (!dec)
 		return -1;
-	}
 
 	size_t j = 0;
 	for (size_t i = 0; i + 4 <= inlen; i += 4) {
@@ -85,13 +84,12 @@ static int b64url_decode(const char *in, unsigned char **out, size_t *out_len)
 		}
 	}
 	dec[j] = '\0';
-	free(buf);
 	*out = dec;
 	*out_len = j;
 	return 0;
 }
 
-static char *sub_user_from_jwt(const char *jwt)
+static char *sub_user_from_jwt(cw_arena *arena, const char *jwt)
 {
 	const char *p1 = strchr(jwt, '.');
 	if (!p1)
@@ -100,7 +98,7 @@ static char *sub_user_from_jwt(const char *jwt)
 	if (!p2)
 		return NULL;
 	size_t plen = (size_t)(p2 - p1 - 1);
-	char *payload = malloc(plen + 1);
+	char *payload = cw_arena_alloc(arena, plen + 1);
 	if (!payload)
 		return NULL;
 	memcpy(payload, p1 + 1, plen);
@@ -108,14 +106,10 @@ static char *sub_user_from_jwt(const char *jwt)
 
 	unsigned char *raw = NULL;
 	size_t rawlen = 0;
-	if (b64url_decode(payload, &raw, &rawlen) != 0) {
-		free(payload);
+	if (b64url_decode(arena, payload, &raw, &rawlen) != 0)
 		return NULL;
-	}
-	free(payload);
 
 	cJSON *root = cJSON_ParseWithLength((const char *)raw, rawlen);
-	free(raw);
 	if (!root)
 		return NULL;
 
@@ -132,7 +126,7 @@ static char *sub_user_from_jwt(const char *jwt)
 		const char *e = u + 5;
 		while (*e && (isalnum((unsigned char)*e) || *e == '_'))
 			e++;
-		id = malloc((size_t)(e - u) + 1);
+		id = cw_arena_alloc(arena, (size_t)(e - u) + 1);
 		if (id) {
 			memcpy(id, u, (size_t)(e - u));
 			id[e - u] = '\0';
@@ -142,9 +136,9 @@ static char *sub_user_from_jwt(const char *jwt)
 	return id;
 }
 
-char *cw_extract_user_id(const char *session_or_jwt)
+char *cw_extract_user_id(cw_arena *arena, const char *session_or_jwt)
 {
-	char *copy = strdup(session_or_jwt);
+	char *copy = cw_arena_strdup(arena, session_or_jwt);
 	if (!copy)
 		return NULL;
 	cw_url_decode_inplace(copy);
@@ -152,19 +146,16 @@ char *cw_extract_user_id(const char *session_or_jwt)
 	char *sep = strstr(copy, "::");
 	if (sep) {
 		*sep = '\0';
-		char *id = strdup(copy);
-		free(copy);
-		return id;
+		return cw_arena_strdup(arena, copy);
 	}
 
-	char *from_jwt = sub_user_from_jwt(copy);
-	free(copy);
-	return from_jwt;
+	return sub_user_from_jwt(arena, copy);
 }
 
-char *cw_build_cookie_header(const char *session_or_jwt, const char *user_id)
+char *cw_build_cookie_header(cw_arena *arena, const char *session_or_jwt,
+			     const char *user_id)
 {
-	char *work = strdup(session_or_jwt);
+	char *work = cw_arena_strdup(arena, session_or_jwt);
 	if (!work)
 		return NULL;
 
@@ -179,37 +170,31 @@ char *cw_build_cookie_header(const char *session_or_jwt, const char *user_id)
 
 	if (!strstr(work, "%3A%3A") && !strstr(work, "::")) {
 		if (user_id && user_id[0]) {
-			char *combined = NULL;
-			if (asprintf(&combined, "%s%%3A%%3A%s", user_id, work) <
-			    0) {
-				free(work);
+			size_t need = strlen(user_id) + strlen(work) + 16;
+			char *combined = cw_arena_alloc(arena, need);
+			if (!combined)
 				return NULL;
-			}
-			free(work);
+			snprintf(combined, need, "%s%%3A%%3A%s", user_id, work);
 			work = combined;
 		}
 	}
 
-	char *hdr = NULL;
-	if (asprintf(&hdr, "WorkosCursorSessionToken=%s", work) < 0)
-		hdr = NULL;
-	free(work);
+	size_t need = strlen(work) + 40;
+	char *hdr = cw_arena_alloc(arena, need);
+	if (!hdr)
+		return NULL;
+	snprintf(hdr, need, "WorkosCursorSessionToken=%s", work);
 	return hdr;
 }
 
-char *cw_jwt_bearer_from_session(const char *session_or_jwt)
+char *cw_jwt_bearer_from_session(cw_arena *arena, const char *session_or_jwt)
 {
-	char *copy = strdup(session_or_jwt);
+	char *copy = cw_arena_strdup(arena, session_or_jwt);
 	if (!copy)
 		return NULL;
 	cw_url_decode_inplace(copy);
 	char *sep = strstr(copy, "::");
-	if (sep) {
-		char *jwt = strdup(sep + 2);
-		free(copy);
-		return jwt;
-	}
-	char *jwt = strdup(copy);
-	free(copy);
-	return jwt;
+	if (sep)
+		return cw_arena_strdup(arena, sep + 2);
+	return cw_arena_strdup(arena, copy);
 }

@@ -25,8 +25,27 @@ static size_t cw_write_cb(char *ptr, size_t size, size_t nmemb, void *userdata)
 	return reals;
 }
 
+static char *body_into_arena(cw_arena *arena, struct cw_mem *chunk)
+{
+	if (!chunk->data)
+		return NULL;
+	char *cpy = cw_arena_alloc(arena, chunk->len + 1);
+	if (!cpy) {
+		free(chunk->data);
+		chunk->data = NULL;
+		chunk->len = 0;
+		return NULL;
+	}
+	memcpy(cpy, chunk->data, chunk->len + 1);
+	free(chunk->data);
+	chunk->data = NULL;
+	chunk->len = 0;
+	return cpy;
+}
+
 int cw_https(const char *method, const char *url, const char *cookie_header,
-	     const char *json_body, long *http_code, char **response_body)
+	     const char *json_body, long *http_code, char **response_body,
+	     cw_arena *arena)
 {
 	CURL *curl;
 	struct cw_mem chunk = {0};
@@ -50,7 +69,7 @@ int cw_https(const char *method, const char *url, const char *cookie_header,
 	hdrs = curl_slist_append(hdrs, "Accept: application/json");
 	hdrs = curl_slist_append(hdrs, "Origin: https://cursor.com");
 	hdrs = curl_slist_append(hdrs,
-				 "Referer: https://cursor.com/dashboard");
+				 "Referer: https://cursor.com/dashboard/billing");
 
 	if (cookie_header) {
 		char *cookie_line = NULL;
@@ -87,10 +106,22 @@ int cw_https(const char *method, const char *url, const char *cookie_header,
 		if (http_code)
 			*http_code = code;
 		if (response_body && chunk.data) {
-			*response_body = chunk.data;
-			chunk.data = NULL;
+			if (arena) {
+				char *out = body_into_arena(arena, &chunk);
+				if (!out)
+					ok = -1;
+				else {
+					*response_body = out;
+					ok = 0;
+				}
+			} else {
+				*response_body = chunk.data;
+				chunk.data = NULL;
+				ok = 0;
+			}
+		} else {
+			ok = 0;
 		}
-		ok = 0;
 	}
 
 	free(chunk.data);
@@ -101,7 +132,7 @@ int cw_https(const char *method, const char *url, const char *cookie_header,
 
 int cw_https_bearer_post(const char *url, const char *bearer_token,
 			 const char *json_body, long *http_code,
-			 char **response_body)
+			 char **response_body, cw_arena *arena)
 {
 	CURL *curl;
 	struct cw_mem chunk = {0};
@@ -151,10 +182,22 @@ int cw_https_bearer_post(const char *url, const char *bearer_token,
 		if (http_code)
 			*http_code = code;
 		if (response_body && chunk.data) {
-			*response_body = chunk.data;
-			chunk.data = NULL;
+			if (arena) {
+				char *out = body_into_arena(arena, &chunk);
+				if (!out)
+					ok = -1;
+				else {
+					*response_body = out;
+					ok = 0;
+				}
+			} else {
+				*response_body = chunk.data;
+				chunk.data = NULL;
+				ok = 0;
+			}
+		} else {
+			ok = 0;
 		}
-		ok = 0;
 	}
 
 	free(chunk.data);
