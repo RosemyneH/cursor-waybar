@@ -42,6 +42,8 @@ Snippets use `"$HOME/.local/bin/cursor-waybar-usage"` and `cursor-waybar-icon`. 
 
 Setup writes **`~/.config/cursor-waybar/token`** (0600). Without it, the binary can use **`CURSOR_READ_SQLITE=1`** to read Cursor’s DB each run (heavier). See `scripts/cursor-waybar-setup` for DB vs browser cookie flow.
 
+Usage **tooltips** (usage-based billing) use **`/api/dashboard/get-aggregated-usage-events`** (same totals as the billing page) for today and the current cycle, with **`get-filtered-usage-events`** only as a paginated fallback.
+
 ## License
 
 MIT for `src/` and `include/`. `third_party/cJSON.*` — Dave Gamble et al. (MIT).
