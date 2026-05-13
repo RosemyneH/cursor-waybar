@@ -56,12 +56,25 @@ static int read_sqlite_access_token(char *out, size_t outsz)
 	const char *home = getenv("HOME");
 	if (!home || !outsz)
 		return -1;
-	char cmd[1100];
-	snprintf(cmd, sizeof cmd,
-		 "sqlite3 \"%s/.config/Cursor/User/globalStorage/state.vscdb\" "
-		 "\"SELECT value FROM ItemTable WHERE key = "
-		 "'cursorAuth/accessToken';\" 2>/dev/null",
-		 home);
+	const char *db = getenv("CURSOR_STATE_DB");
+	char pathbuf[1024];
+	const char *vscdb;
+	if (db && db[0])
+		vscdb = db;
+	else {
+		if (snprintf(pathbuf, sizeof pathbuf,
+			     "%s/.config/Cursor/User/globalStorage/state.vscdb",
+			     home) >= (int)sizeof pathbuf)
+			return -1;
+		vscdb = pathbuf;
+	}
+	char cmd[1400];
+	if (snprintf(cmd, sizeof cmd,
+		     "sqlite3 \"%s\" "
+		     "\"SELECT value FROM ItemTable WHERE key = "
+		     "'cursorAuth/accessToken' LIMIT 1;\" 2>/dev/null",
+		     vscdb) >= (int)sizeof cmd)
+		return -1;
 	FILE *p = popen(cmd, "r");
 	if (!p)
 		return -1;
@@ -112,6 +125,17 @@ static const char *usage_class(int pct)
 	if (pct >= 95)
 		return "cursor-usage-high";
 	if (pct >= 80)
+		return "cursor-usage-mid";
+	return "cursor-usage-low";
+}
+
+static const char *plan_usage_class(int total_pct)
+{
+	if (total_pct < 0)
+		return "cursor-usage-low";
+	if (total_pct >= 99)
+		return "cursor-usage-high";
+	if (total_pct >= 88)
 		return "cursor-usage-mid";
 	return "cursor-usage-low";
 }
@@ -232,7 +256,7 @@ int main(void)
 
 	cJSON *out = cJSON_CreateObject();
 	char text[64];
-	char tip[512];
+	char tip[960];
 	char tip_combined[2048];
 
 	if ((kind == CW_BILL_PRO || kind == CW_BILL_BUSINESS) && usage) {
@@ -266,15 +290,57 @@ int main(void)
 		cJSON *events =
 			cw_api_post_usage_events(cookie, start_ms, now_ms);
 		double usd = cw_sum_today_cost_usd(events);
+		cJSON_Delete(events);
+
+		int have_cycle = 0;
+		double usd_cycle = 0.0;
+		char ds[40] = "";
+		char de[40] = "";
+		long long cyc0 = 0, cyc1 = 0;
+		if (period_root &&
+		    cw_period_billing_cycle_ms(period_root, &cyc0, &cyc1) == 0) {
+			long long q0 = cyc0;
+			long long q1 = now_ms < cyc1 ? now_ms : cyc1;
+			if (q1 > q0) {
+				time_t ts_s = (time_t)(q0 / 1000LL);
+				time_t ts_e = (time_t)(cyc1 / 1000LL);
+				struct tm tms, tme;
+				localtime_r(&ts_s, &tms);
+				localtime_r(&ts_e, &tme);
+				strftime(ds, sizeof ds, "%Y-%m-%d", &tms);
+				strftime(de, sizeof de, "%Y-%m-%d", &tme);
+				usd_cycle = cw_sum_usage_cost_usd_in_range(
+					cookie, q0, q1, 50);
+				have_cycle = 1;
+			}
+		}
+
 		if (usd < 0.01 && usd > 0)
 			snprintf(text, sizeof text, "Cur %.2f¢", usd * 100.0);
 		else
 			snprintf(text, sizeof text, "Cur $%.2f", usd);
 
-		snprintf(tip, sizeof tip,
-			 "Cursor usage-based: today ~ $%.4f USD (local midnight "
-			 "to now)",
-			 usd);
+		if (have_cycle && ds[0] && de[0]) {
+			int days_left = 0;
+			if (cyc1 > now_ms) {
+				long long delta = cyc1 - now_ms;
+				days_left = (int)((delta + 86400000LL - 1) /
+						   86400000LL);
+				if (days_left > 999)
+					days_left = 999;
+			}
+			snprintf(tip, sizeof tip,
+				 "Cursor usage-based: today ~ $%.4f USD (local "
+				 "midnight to now)\n"
+				 "Billing cycle sum: ~ $%.4f USD (%s → %s, %d "
+				 "%s)",
+				 usd, usd_cycle, ds, de, days_left,
+				 days_left == 1 ? "day left" : "days left");
+		} else
+			snprintf(tip, sizeof tip,
+				 "Cursor usage-based: today ~ $%.4f USD (local "
+				 "midnight to now)",
+				 usd);
 
 		if (cJSON_GetObjectItem(out, "text"))
 			cJSON_DeleteItemFromObject(out, "text");
@@ -291,7 +357,6 @@ int main(void)
 		cJSON_AddStringToObject(out, "0", text);
 		cJSON_AddStringToObject(out, "tooltip", tip);
 		cJSON_AddStringToObject(out, "class", "cursor-usage-usagebased");
-		cJSON_Delete(events);
 	}
 
 	if (period_root) {
@@ -333,7 +398,7 @@ int main(void)
 			if (tp >= 0)
 				cJSON_AddNumberToObject(out, "percentage",
 							(double)tp);
-			cJSON_AddStringToObject(out, "class", usage_class(tp));
+			cJSON_AddStringToObject(out, "class", plan_usage_class(tp));
 		}
 		cJSON_Delete(period_root);
 		period_root = NULL;

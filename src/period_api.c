@@ -141,12 +141,23 @@ int cw_period_dashboard_metrics(cJSON *period_root, int *total_pct_out,
 			time_t ts_e = (time_t)(ms_e / 1000LL);
 			struct tm tms, tme;
 			char ds[32], de[32];
+			long long now_ms = (long long)time(NULL) * 1000LL;
+			int days_left = 0;
+			if (ms_e > now_ms) {
+				long long delta = ms_e - now_ms;
+				days_left = (int)((delta + 86400000LL - 1) /
+						  86400000LL);
+				if (days_left > 999)
+					days_left = 999;
+			}
 			localtime_r(&ts_s, &tms);
 			localtime_r(&ts_e, &tme);
 			strftime(ds, sizeof ds, "%Y-%m-%d", &tms);
 			strftime(de, sizeof de, "%Y-%m-%d", &tme);
 			append_fmt(tip_append, tip_cap, &w,
-				   "Billing cycle: %s -> %s\n", ds, de);
+				   "Billing cycle: %s -> %s (%d %s)\n", ds, de,
+				   days_left,
+				   days_left == 1 ? "day left" : "days left");
 		}
 	}
 
@@ -159,9 +170,11 @@ int cw_period_dashboard_metrics(cJSON *period_root, int *total_pct_out,
 			   api_pct);
 
 	{
+		const char *show_dm = getenv("CURSOR_WAYBAR_DISPLAY_MESSAGE");
 		cJSON *dm = cJSON_GetObjectItemCaseSensitive(period_root,
 							     "displayMessage");
-		if (cJSON_IsString(dm) && dm->valuestring &&
+		if (show_dm && strcmp(show_dm, "1") == 0 &&
+		    cJSON_IsString(dm) && dm->valuestring &&
 		    dm->valuestring[0])
 			append_fmt(tip_append, tip_cap, &w, "%s\n",
 				   dm->valuestring);
