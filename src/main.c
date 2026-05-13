@@ -21,7 +21,7 @@ static long long today_start_ms_local(void)
 	return (long long)midnight * 1000LL;
 }
 
-static char *read_file_trim(const char *path)
+static char *read_file_trim(cw_arena *arena, const char *path)
 {
 	FILE *f = fopen(path, "rb");
 	if (!f)
@@ -36,7 +36,7 @@ static char *read_file_trim(const char *path)
 		return NULL;
 	}
 	rewind(f);
-	char *buf = malloc((size_t)n + 1);
+	char *buf = cw_arena_alloc(arena, (size_t)n + 1);
 	if (!buf) {
 		fclose(f);
 		return NULL;
@@ -180,20 +180,24 @@ int main(void)
 
 	curl_global_init(CURL_GLOBAL_DEFAULT);
 
+	cw_arena arena;
+	unsigned char arena_scratch[256 * 1024];
+	cw_arena_init(&arena, arena_scratch, sizeof arena_scratch);
+
 	char *token = NULL;
 	const char *ev = getenv("CURSOR_SESSION_TOKEN");
 	if (!ev)
 		ev = getenv("CURSOR_ACCESS_TOKEN");
 	if (ev && ev[0])
-		token = strdup(ev);
+		token = cw_arena_strdup(&arena, ev);
 
 	char pathbuf[512];
 	if (!token) {
 		const char *p = getenv("CURSOR_TOKEN_FILE");
 		if (p && p[0])
-			token = read_file_trim(p);
+			token = read_file_trim(&arena, p);
 		if (!token && default_token_path(pathbuf, sizeof pathbuf))
-			token = read_file_trim(pathbuf);
+			token = read_file_trim(&arena, pathbuf);
 	}
 
 	if (!token) {
@@ -201,7 +205,7 @@ int main(void)
 		if (rs && strcmp(rs, "1") == 0) {
 			char tbuf[8192];
 			if (read_sqlite_access_token(tbuf, sizeof tbuf) == 0)
-				token = strdup(tbuf);
+				token = cw_arena_strdup(&arena, tbuf);
 		}
 	}
 
@@ -209,44 +213,39 @@ int main(void)
 		emit_waybar_error(
 			"No token: set CURSOR_SESSION_TOKEN, CURSOR_TOKEN_FILE, "
 			"~/.config/cursor-waybar/token, or CURSOR_READ_SQLITE=1");
+		cw_arena_free(&arena);
 		curl_global_cleanup();
 		return 0;
 	}
 
-	char *user_id = cw_extract_user_id(token);
+	char *user_id = cw_extract_user_id(&arena, token);
 	if (!user_id || !user_id[0]) {
 		emit_waybar_error("Could not derive user id from token");
-		free(token);
+		cw_arena_free(&arena);
 		curl_global_cleanup();
 		return 0;
 	}
 
-	char *jwt = cw_jwt_bearer_from_session(token);
-	char *cookie = cw_build_cookie_header(token, user_id);
-	free(token);
-	token = NULL;
+	char *jwt = cw_jwt_bearer_from_session(&arena, token);
+	char *cookie = cw_build_cookie_header(&arena, token, user_id);
 	if (!cookie) {
-		free(jwt);
-		free(user_id);
 		emit_waybar_error("Cookie build failed");
+		cw_arena_free(&arena);
 		curl_global_cleanup();
 		return 0;
 	}
 
 	cJSON *period_root = NULL;
 	if (jwt && jwt[0])
-		period_root = cw_period_usage_fetch(jwt);
-	free(jwt);
-	jwt = NULL;
+		period_root = cw_period_usage_fetch(&arena, jwt);
 
-	cJSON *usage = cw_api_get_usage(cookie, user_id);
-	cJSON *stripe = cw_api_get_stripe(cookie);
+	cJSON *usage = cw_api_get_usage(&arena, cookie, user_id);
+	cJSON *stripe = cw_api_get_stripe(&arena, cookie);
 
 	if (!usage && !stripe) {
 		emit_waybar_error(
 			"cursor.com/api unreachable or auth failed (HTTP/parse)");
-		free(cookie);
-		free(user_id);
+		cw_arena_free(&arena);
 		curl_global_cleanup();
 		return 0;
 	}
@@ -287,13 +286,13 @@ int main(void)
 		long long now_ms =
 			(long long)time(NULL) * 1000LL;
 		long long start_ms = today_start_ms_local();
-		cJSON *events =
-			cw_api_post_usage_events(cookie, start_ms, now_ms);
-		double usd = cw_sum_today_cost_usd(events);
-		cJSON_Delete(events);
+		long long today_tok = 0;
+		double usd = cw_sum_usage_cost_usd_in_range(
+			&arena, cookie, start_ms, now_ms, 50, &today_tok);
 
 		int have_cycle = 0;
 		double usd_cycle = 0.0;
+		long long cycle_tok = 0;
 		char ds[40] = "";
 		char de[40] = "";
 		long long cyc0 = 0, cyc1 = 0;
@@ -310,7 +309,7 @@ int main(void)
 				strftime(ds, sizeof ds, "%Y-%m-%d", &tms);
 				strftime(de, sizeof de, "%Y-%m-%d", &tme);
 				usd_cycle = cw_sum_usage_cost_usd_in_range(
-					cookie, q0, q1, 50);
+					&arena, cookie, q0, q1, 50, &cycle_tok);
 				have_cycle = 1;
 			}
 		}
@@ -330,17 +329,18 @@ int main(void)
 					days_left = 999;
 			}
 			snprintf(tip, sizeof tip,
-				 "Cursor usage-based: today ~ $%.4f USD (local "
-				 "midnight to now)\n"
-				 "Billing cycle sum: ~ $%.4f USD (%s → %s, %d "
-				 "%s)",
-				 usd, usd_cycle, ds, de, days_left,
+				 "Cursor usage-based: today ~ $%.4f USD · "
+				 "~ %lld tokens (local midnight to now)\n"
+				 "Billing cycle: ~ $%.4f USD · ~ %lld tokens "
+				 "(%s → %s, %d %s)",
+				 usd, today_tok, usd_cycle, cycle_tok, ds, de,
+				 days_left,
 				 days_left == 1 ? "day left" : "days left");
 		} else
 			snprintf(tip, sizeof tip,
-				 "Cursor usage-based: today ~ $%.4f USD (local "
-				 "midnight to now)",
-				 usd);
+				 "Cursor usage-based: today ~ $%.4f USD · "
+				 "~ %lld tokens (local midnight to now)",
+				 usd, today_tok);
 
 		if (cJSON_GetObjectItem(out, "text"))
 			cJSON_DeleteItemFromObject(out, "text");
@@ -412,8 +412,7 @@ int main(void)
 
 	cJSON_Delete(usage);
 	cJSON_Delete(stripe);
-	free(cookie);
-	free(user_id);
+	cw_arena_free(&arena);
 	curl_global_cleanup();
 	return 0;
 }
