@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -89,6 +90,24 @@ static int read_sqlite_access_token(char *out, size_t outsz)
 		L--;
 	}
 	return L > 0 ? 0 : -1;
+}
+
+static int write_token_file(const char *path, const char *token)
+{
+	FILE *f;
+
+	if (!path || !token || !token[0])
+		return -1;
+	f = fopen(path, "wb");
+	if (!f)
+		return -1;
+	if (fwrite(token, 1, strlen(token), f) != strlen(token)) {
+		fclose(f);
+		return -1;
+	}
+	fclose(f);
+	chmod(path, 0600);
+	return 0;
 }
 
 static void tooltip_lf_to_cr(char *s)
@@ -314,26 +333,54 @@ int main(void)
 
 	char *token = NULL;
 	const char *ev = getenv("CURSOR_SESSION_TOKEN");
+	char pathbuf[512];
+	const char *token_path = NULL;
+	int prefer_sqlite = 0;
+	char sqlite_tok[8192];
+	int have_sqlite = 0;
+
 	if (!ev)
 		ev = getenv("CURSOR_ACCESS_TOKEN");
 	if (ev && ev[0])
 		token = cw_arena_strdup(&arena, ev);
 
-	char pathbuf[512];
-	if (!token) {
-		const char *p = getenv("CURSOR_TOKEN_FILE");
-		if (p && p[0])
-			token = read_file_trim(&arena, p);
-		if (!token && default_token_path(pathbuf, sizeof pathbuf))
-			token = read_file_trim(&arena, pathbuf);
+	{
+		const char *rs = getenv("CURSOR_READ_SQLITE");
+		prefer_sqlite = rs && strcmp(rs, "1") == 0;
+	}
+
+	if (prefer_sqlite &&
+	    read_sqlite_access_token(sqlite_tok, sizeof sqlite_tok) == 0) {
+		have_sqlite = 1;
+		token = cw_arena_strdup(&arena, sqlite_tok);
 	}
 
 	if (!token) {
-		const char *rs = getenv("CURSOR_READ_SQLITE");
-		if (rs && strcmp(rs, "1") == 0) {
-			char tbuf[8192];
-			if (read_sqlite_access_token(tbuf, sizeof tbuf) == 0)
-				token = cw_arena_strdup(&arena, tbuf);
+		const char *p = getenv("CURSOR_TOKEN_FILE");
+		if (p && p[0]) {
+			token_path = p;
+			token = read_file_trim(&arena, p);
+		}
+		if (!token && default_token_path(pathbuf, sizeof pathbuf)) {
+			token_path = pathbuf;
+			token = read_file_trim(&arena, pathbuf);
+		}
+	}
+
+	if ((!token || !token[0] || cw_jwt_is_expired(token)) && !prefer_sqlite) {
+		if (!have_sqlite &&
+		    read_sqlite_access_token(sqlite_tok, sizeof sqlite_tok) == 0)
+			have_sqlite = 1;
+		if (have_sqlite && sqlite_tok[0] &&
+		    !cw_jwt_is_expired(sqlite_tok)) {
+			const char *out_path = token_path;
+
+			token = cw_arena_strdup(&arena, sqlite_tok);
+			if (!out_path)
+				out_path = default_token_path(pathbuf,
+							      sizeof pathbuf);
+			if (out_path)
+				write_token_file(out_path, sqlite_tok);
 		}
 	}
 

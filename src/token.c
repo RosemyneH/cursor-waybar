@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 char *cw_url_decode_inplace(char *s)
 {
@@ -197,4 +198,76 @@ char *cw_jwt_bearer_from_session(cw_arena *arena, const char *session_or_jwt)
 	if (sep)
 		return cw_arena_strdup(arena, sep + 2);
 	return cw_arena_strdup(arena, copy);
+}
+
+int cw_jwt_is_expired(const char *session_or_jwt)
+{
+	char *copy;
+	char *jwt;
+	const char *p1;
+	const char *p2;
+	size_t plen;
+	char *payload;
+	unsigned char *raw = NULL;
+	size_t rawlen = 0;
+	cJSON *root;
+	cJSON *exp;
+	double exp_n;
+	cw_arena scratch;
+	unsigned char buf[8192];
+	int expired = 1;
+
+	if (!session_or_jwt || !session_or_jwt[0])
+		return 1;
+
+	cw_arena_init(&scratch, buf, sizeof buf);
+	copy = cw_arena_strdup(&scratch, session_or_jwt);
+	if (!copy) {
+		cw_arena_free(&scratch);
+		return 1;
+	}
+	cw_url_decode_inplace(copy);
+	jwt = copy;
+	{
+		char *sep = strstr(copy, "::");
+		if (sep)
+			jwt = sep + 2;
+	}
+
+	p1 = strchr(jwt, '.');
+	if (!p1) {
+		cw_arena_free(&scratch);
+		return 1;
+	}
+	p2 = strchr(p1 + 1, '.');
+	if (!p2) {
+		cw_arena_free(&scratch);
+		return 1;
+	}
+	plen = (size_t)(p2 - p1 - 1);
+	payload = cw_arena_alloc(&scratch, plen + 1);
+	if (!payload) {
+		cw_arena_free(&scratch);
+		return 1;
+	}
+	memcpy(payload, p1 + 1, plen);
+	payload[plen] = '\0';
+	if (b64url_decode(&scratch, payload, &raw, &rawlen) != 0) {
+		cw_arena_free(&scratch);
+		return 1;
+	}
+
+	root = cJSON_ParseWithLength((const char *)raw, rawlen);
+	if (!root) {
+		cw_arena_free(&scratch);
+		return 1;
+	}
+	exp = cJSON_GetObjectItemCaseSensitive(root, "exp");
+	if (cJSON_IsNumber(exp)) {
+		exp_n = cJSON_GetNumberValue(exp);
+		expired = !(exp_n > (double)time(NULL) + 60.0);
+	}
+	cJSON_Delete(root);
+	cw_arena_free(&scratch);
+	return expired;
 }

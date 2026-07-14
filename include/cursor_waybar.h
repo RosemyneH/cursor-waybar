@@ -26,6 +26,7 @@ char *cw_build_cookie_header(cw_arena *arena, const char *session_or_jwt,
 			     const char *user_id);
 
 char *cw_jwt_bearer_from_session(cw_arena *arena, const char *session_or_jwt);
+int cw_jwt_is_expired(const char *session_or_jwt);
 
 cJSON *cw_api_get_usage(cw_arena *arena, const char *cookie_header,
 			const char *user_id);
