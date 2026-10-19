@@ -54,9 +54,12 @@ double cw_sum_usage_cost_usd_in_range(cw_arena *arena, const char *cookie_header
 				       int max_pages, long long *tokens_out_opt);
 
 cJSON *cw_period_usage_fetch(cw_arena *arena, const char *bearer_jwt);
-int cw_period_dashboard_metrics(cJSON *period_root, int *total_pct_out,
-				int *auto_pct_out, int *api_pct_out,
-				double *auto_raw_out, double *api_raw_out,
-				char *tip_append, size_t tip_cap);
+cJSON *cw_plan_info_fetch(cw_arena *arena, const char *bearer_jwt);
+int cw_usage_is_weekly(cJSON *plan_root, cJSON *period_root);
+int cw_period_dashboard_metrics(cJSON *period_root, cJSON *plan_root,
+				int *total_pct_out, int *auto_pct_out,
+				int *api_pct_out, double *auto_raw_out,
+				double *api_raw_out, char *tip_append,
+				size_t tip_cap);
 int cw_period_billing_cycle_ms(cJSON *period_root, long long *start_ms_out,
 				long long *end_ms_out);

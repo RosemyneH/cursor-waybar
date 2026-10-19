@@ -271,49 +271,54 @@ static void fill_usage_based_tooltip(char *tip, size_t tipcap, int markup,
 				     const char *accent, double usd,
 				     const char *tok_today, int have_cycle,
 				     double usd_cycle, const char *tok_cycle,
-				     const char *ds, const char *de, int days_left)
+				     const char *ds, const char *de,
+				     int days_left, int weekly, int since_reset)
 {
 	const char *dayw = days_left == 1 ? "day left" : "days left";
+	const char *span = weekly ? "This week" : "Billing cycle";
+	const char *toks = weekly ? "Tokens this week" : "Tokens this Cycle";
+	const char *today_rng = since_reset ? "since reset" :
+					      "local midnight to now";
 
 	if (!markup) {
 		if (have_cycle) {
 			snprintf(tip, tipcap,
 				 "Cursor usage-based: today ~ $%.2f USD "
-				 "(local midnight to now)\r"
+				 "(%s)\r"
 				 "Today's Tokens: %s\r"
 				 "\r"
-				 "Billing cycle: ~ $%.2f USD (%s → %s, %d %s)\r"
-				 "Tokens this Cycle: %s",
-				 usd, tok_today, usd_cycle, ds, de, days_left,
-				 dayw, tok_cycle);
+				 "%s: ~ $%.2f USD (%s → %s, %d %s)\r"
+				 "%s: %s",
+				 usd, today_rng, tok_today, span, usd_cycle, ds,
+				 de, days_left, dayw, toks, tok_cycle);
 		} else {
 			snprintf(tip, tipcap,
 				 "Cursor usage-based: today ~ $%.2f USD "
-				 "(local midnight to now)\r"
+				 "(%s)\r"
 				 "Today's Tokens: %s",
-				 usd, tok_today);
+				 usd, today_rng, tok_today);
 		}
 		return;
 	}
 	if (have_cycle) {
 		snprintf(tip, tipcap,
 			 "Cursor usage-based: today ~ $%.2f USD "
-			 "(local midnight to now)\r"
+			 "(%s)\r"
 			 "<span alpha='0.85'>Today's Tokens:</span> "
 			 "<span weight='bold' foreground='%s'>%s</span>\r"
 			 "\r"
-			 "Billing cycle: ~ $%.2f USD (%s → %s, %d %s)\r"
-			 "<span alpha='0.85'>Tokens this Cycle:</span> "
+			 "%s: ~ $%.2f USD (%s → %s, %d %s)\r"
+			 "<span alpha='0.85'>%s:</span> "
 			 "<span weight='bold' foreground='%s'>%s</span>",
-			 usd, accent, tok_today, usd_cycle, ds, de, days_left,
-			 dayw, accent, tok_cycle);
+			 usd, today_rng, accent, tok_today, span, usd_cycle, ds,
+			 de, days_left, dayw, toks, accent, tok_cycle);
 	} else {
 		snprintf(tip, tipcap,
 			 "Cursor usage-based: today ~ $%.2f USD "
-			 "(local midnight to now)\r"
+			 "(%s)\r"
 			 "<span alpha='0.85'>Today's Tokens:</span> "
 			 "<span weight='bold' foreground='%s'>%s</span>",
-			 usd, accent, tok_today);
+			 usd, today_rng, accent, tok_today);
 	}
 }
 
@@ -411,8 +416,13 @@ int main(void)
 	}
 
 	cJSON *period_root = NULL;
-	if (jwt && jwt[0])
+	cJSON *plan_root = NULL;
+	int weekly = 0;
+	if (jwt && jwt[0]) {
 		period_root = cw_period_usage_fetch(&arena, jwt);
+		plan_root = cw_plan_info_fetch(&arena, jwt);
+	}
+	weekly = cw_usage_is_weekly(plan_root, period_root);
 
 	cJSON *usage = cw_api_get_usage(&arena, cookie, user_id);
 	cJSON *stripe = cw_api_get_stripe(&arena, cookie);
@@ -420,6 +430,8 @@ int main(void)
 	if (!usage && !stripe) {
 		emit_waybar_error(
 			"cursor.com/api unreachable or auth failed (HTTP/parse)");
+		cJSON_Delete(period_root);
+		cJSON_Delete(plan_root);
 		cw_arena_free(&arena);
 		curl_global_cleanup();
 		return 0;
@@ -463,8 +475,8 @@ int main(void)
 			(long long)time(NULL) * 1000LL;
 		long long start_ms = today_start_ms_local();
 		long long today_tok = 0;
-		double usd = cw_sum_usage_cost_usd_in_range(
-			&arena, cookie, start_ms, now_ms, 50, &today_tok);
+		double usd;
+		int since_reset = 0;
 
 		int have_cycle = 0;
 		double usd_cycle = 0.0;
@@ -472,6 +484,14 @@ int main(void)
 		char ds[40] = "";
 		char de[40] = "";
 		long long cyc0 = 0, cyc1 = 0;
+		if (period_root &&
+		    cw_period_billing_cycle_ms(period_root, &cyc0, &cyc1) == 0 &&
+		    cyc0 > start_ms && cyc0 < now_ms) {
+			start_ms = cyc0;
+			since_reset = 1;
+		}
+		usd = cw_sum_usage_cost_usd_in_range(
+			&arena, cookie, start_ms, now_ms, 50, &today_tok);
 		if (period_root &&
 		    cw_period_billing_cycle_ms(period_root, &cyc0, &cyc1) == 0) {
 			long long q0 = cyc0;
@@ -514,7 +534,8 @@ int main(void)
 			}
 			fill_usage_based_tooltip(tip, sizeof tip, mk, accent, usd,
 						   tok_td, show_cycle, usd_cycle,
-						   tok_cy, ds, de, days_left);
+						   tok_cy, ds, de, days_left,
+						   weekly, since_reset);
 		}
 
 		if (cJSON_GetObjectItem(out, "text"))
@@ -540,8 +561,9 @@ int main(void)
 		double auto_raw = NAN;
 		double api_raw = NAN;
 		char period_buf[896];
-		if (cw_period_dashboard_metrics(period_root, &tp, &ap, &apii,
-						&auto_raw, &api_raw, period_buf,
+		if (cw_period_dashboard_metrics(period_root, plan_root, &tp, &ap,
+						&apii, &auto_raw, &api_raw,
+						period_buf,
 						sizeof period_buf) == 0) {
 			const char *prev = "";
 			cJSON *ot = cJSON_GetObjectItem(out, "tooltip");
@@ -562,8 +584,11 @@ int main(void)
 				snprintf(tip_combined, sizeof tip_combined, "%s", ph);
 			}
 
-			build_auto_api_pill(text, sizeof text, auto_raw, api_raw,
-					    tp);
+			if (weekly && tp >= 0)
+				snprintf(text, sizeof text, "%d%%", tp);
+			else
+				build_auto_api_pill(text, sizeof text, auto_raw,
+						    api_raw, tp);
 
 			if (cJSON_GetObjectItem(out, "text"))
 				cJSON_DeleteItemFromObject(out, "text");
@@ -587,6 +612,10 @@ int main(void)
 		}
 		cJSON_Delete(period_root);
 		period_root = NULL;
+	}
+	if (plan_root) {
+		cJSON_Delete(plan_root);
+		plan_root = NULL;
 	}
 
 	char *line = cJSON_PrintUnformatted(out);
