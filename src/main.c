@@ -10,16 +10,22 @@
 #include <time.h>
 #include <unistd.h>
 
-static long long today_start_ms_local(void)
+static long long local_midnight_ms(time_t sec)
 {
-	time_t t = time(NULL);
 	struct tm tm_local;
-	localtime_r(&t, &tm_local);
+	time_t midnight;
+
+	localtime_r(&sec, &tm_local);
 	tm_local.tm_hour = 0;
 	tm_local.tm_min = 0;
 	tm_local.tm_sec = 0;
-	time_t midnight = mktime(&tm_local);
+	midnight = mktime(&tm_local);
 	return (long long)midnight * 1000LL;
+}
+
+static long long today_start_ms_local(void)
+{
+	return local_midnight_ms(time(NULL));
 }
 
 static char *read_file_trim(cw_arena *arena, const char *path)
@@ -477,7 +483,6 @@ int main(void)
 		long long start_ms = today_start_ms_local();
 		long long today_tok = 0;
 		double usd;
-		int since_reset = 0;
 
 		int have_cycle = 0;
 		double usd_cycle = 0.0;
@@ -485,18 +490,18 @@ int main(void)
 		char ds[40] = "";
 		char de[40] = "";
 		long long cyc0 = 0, cyc1 = 0;
-		if (period_root &&
-		    cw_period_billing_cycle_ms(period_root, &cyc0, &cyc1) == 0 &&
-		    cyc0 > start_ms && cyc0 < now_ms) {
-			start_ms = cyc0;
-			since_reset = 1;
-		}
 		usd = cw_sum_usage_cost_usd_in_range(
 			&arena, cookie, start_ms, now_ms, 50, &today_tok);
 		if (period_root &&
 		    cw_period_billing_cycle_ms(period_root, &cyc0, &cyc1) == 0) {
 			long long q0 = cyc0;
 			long long q1 = now_ms < cyc1 ? now_ms : cyc1;
+			if (weekly) {
+				long long mid =
+					local_midnight_ms((time_t)(cyc0 / 1000LL));
+				if (mid > 0 && mid < q0)
+					q0 = mid;
+			}
 			if (q1 > q0) {
 				time_t ts_s = (time_t)(q0 / 1000LL);
 				time_t ts_e = (time_t)(cyc1 / 1000LL);
@@ -537,7 +542,7 @@ int main(void)
 			fill_usage_based_tooltip(tip, sizeof tip, mk, accent, usd,
 						   tok_td, show_cycle, usd_cycle,
 						   tok_cy, ds, de, days_left,
-						   weekly, since_reset);
+						   weekly, 0);
 		}
 
 		if (cJSON_GetObjectItem(out, "text"))

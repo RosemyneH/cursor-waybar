@@ -75,12 +75,8 @@ static int parse_aggregated_usage_response(cJSON *root, double *usd_out,
 			n_top_tok++;
 		}
 	}
-	if (n_top_tok == (int)(sizeof tot_tok / sizeof tot_tok[0]))
+	if (n_top_tok > 0)
 		ok_tok = 1;
-	else {
-		tok = 0LL;
-		ok_tok = 0;
-	}
 
 	if (!ok_usd || !ok_tok) {
 		cJSON *ag =
