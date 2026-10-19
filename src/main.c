@@ -278,13 +278,12 @@ static void fill_usage_based_tooltip(char *tip, size_t tipcap, int markup,
 				     const char *tok_today, int have_cycle,
 				     double usd_cycle, const char *tok_cycle,
 				     const char *ds, const char *de,
-				     int days_left, int weekly, int since_reset)
+				     int days_left, int weekly)
 {
 	const char *dayw = days_left == 1 ? "day left" : "days left";
 	const char *span = weekly ? "This week" : "Billing cycle";
 	const char *toks = weekly ? "Tokens this week" : "Tokens this Cycle";
-	const char *today_rng = since_reset ? "since reset" :
-					      "local midnight to now";
+	const char *today_rng = "local midnight to now";
 
 	if (!markup) {
 		if (have_cycle) {
@@ -541,8 +540,7 @@ int main(void)
 			}
 			fill_usage_based_tooltip(tip, sizeof tip, mk, accent, usd,
 						   tok_td, show_cycle, usd_cycle,
-						   tok_cy, ds, de, days_left,
-						   weekly, 0);
+						   tok_cy, ds, de, days_left, weekly);
 		}
 
 		if (cJSON_GetObjectItem(out, "text"))
