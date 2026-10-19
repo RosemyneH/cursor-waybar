@@ -418,6 +418,7 @@ int main(void)
 	cJSON *period_root = NULL;
 	cJSON *plan_root = NULL;
 	int weekly = 0;
+	long long week_tokens = -1;
 	if (jwt && jwt[0]) {
 		period_root = cw_period_usage_fetch(&arena, jwt);
 		plan_root = cw_plan_info_fetch(&arena, jwt);
@@ -507,6 +508,7 @@ int main(void)
 				usd_cycle = cw_sum_usage_cost_usd_in_range(
 					&arena, cookie, q0, q1, 50, &cycle_tok);
 				have_cycle = 1;
+				week_tokens = cycle_tok;
 			}
 		}
 
@@ -571,6 +573,16 @@ int main(void)
 			char phbuf[4096];
 			const char *ph = period_buf;
 
+			if (weekly && week_tokens >= 0) {
+				char tok[24];
+				char line[64];
+				size_t n = strlen(period_buf);
+
+				fmt_tokens_pretty(tok, sizeof tok, week_tokens);
+				snprintf(line, sizeof line, "Tokens: %s\r", tok);
+				if (n + strlen(line) < sizeof period_buf)
+					memcpy(period_buf + n, line, strlen(line) + 1);
+			}
 			if (cJSON_IsString(ot) && ot->valuestring)
 				prev = ot->valuestring;
 			if (mk) {
@@ -584,9 +596,22 @@ int main(void)
 				snprintf(tip_combined, sizeof tip_combined, "%s", ph);
 			}
 
-			if (weekly && tp >= 0)
-				snprintf(text, sizeof text, "%d%%", tp);
-			else
+			if (weekly && tp >= 0) {
+				char tok[24];
+
+				if (week_tokens >= 0) {
+					fmt_tokens_pretty(tok, sizeof tok, week_tokens);
+					if (tok[0] >= '0' && tok[0] <= '9' &&
+					    !strchr(tok, 'K') && !strchr(tok, 'M') &&
+					    !strchr(tok, 'B'))
+						snprintf(text, sizeof text, "%d%% · %s tok",
+							 tp, tok);
+					else
+						snprintf(text, sizeof text, "%d%% · %s",
+							 tp, tok);
+				} else
+					snprintf(text, sizeof text, "%d%%", tp);
+			} else
 				build_auto_api_pill(text, sizeof text, auto_raw,
 						    api_raw, tp);
 
