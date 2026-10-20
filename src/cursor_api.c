@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "cursor_waybar.h"
 
 #include <stdio.h>
@@ -164,4 +165,78 @@ cJSON *cw_api_post_usage_events(cw_arena *arena, const char *cookie_header,
 {
 	return cw_api_post_usage_events_page(arena, cookie_header, start_ms,
 					     end_ms, 1, 100);
+}
+
+static cJSON *cw_get_json(const char *url, const char *cookie_header)
+{
+	long code = 0;
+	char *body = NULL;
+	cJSON *j;
+
+	if (cw_https("GET", url, cookie_header, NULL, &code, &body, NULL) != 0)
+		return NULL;
+	if (code != 200 || !body) {
+		free(body);
+		return NULL;
+	}
+	j = cJSON_Parse(body);
+	free(body);
+	return j;
+}
+
+cJSON *cw_api_get_usage_status(const char *cookie_header)
+{
+	char url[256];
+
+	snprintf(url, sizeof url,
+		 "%s/dashboard/v2/usage-status?scope=user", CW_API_BASE);
+	return cw_get_json(url, cookie_header);
+}
+
+static cJSON *cw_get_json_post(const char *url, const char *cookie_header,
+			       const char *json_body)
+{
+	long code = 0;
+	char *body = NULL;
+	cJSON *j;
+
+	if (cw_https("POST", url, cookie_header, json_body, &code, &body, NULL) !=
+	    0)
+		return NULL;
+	if (code != 200 || !body) {
+		free(body);
+		return NULL;
+	}
+	j = cJSON_Parse(body);
+	free(body);
+	return j;
+}
+
+cJSON *cw_api_query_daily_usage(const char *cookie_header, const char *start_iso,
+				const char *end_iso)
+{
+	cJSON *req;
+	cJSON *group;
+	cJSON *resp;
+	char *post;
+
+	if (!cookie_header || !start_iso || !end_iso)
+		return NULL;
+	req = cJSON_CreateObject();
+	if (!req)
+		return NULL;
+	cJSON_AddStringToObject(req, "scope", "user");
+	cJSON_AddStringToObject(req, "startTime", start_iso);
+	cJSON_AddStringToObject(req, "endTime", end_iso);
+	group = cJSON_AddArrayToObject(req, "groupBy");
+	if (group)
+		cJSON_AddItemToArray(group, cJSON_CreateString("usageType"));
+	post = cJSON_PrintUnformatted(req);
+	cJSON_Delete(req);
+	if (!post)
+		return NULL;
+	resp = cw_get_json_post(CW_API_BASE "/dashboard/v2/query-daily-usage",
+				cookie_header, post);
+	free(post);
+	return resp;
 }

@@ -43,6 +43,9 @@ cJSON *cw_api_post_aggregated_usage_events(cw_arena *arena,
 					  long long start_ms, long long end_ms);
 cJSON *cw_api_post_usage_events(cw_arena *arena, const char *cookie_header,
 				long long start_ms, long long end_ms);
+cJSON *cw_api_get_usage_status(const char *cookie_header);
+cJSON *cw_api_query_daily_usage(const char *cookie_header, const char *start_iso,
+				const char *end_iso);
 
 int cw_usage_premium_gpt4(cJSON *usage_root, int *used_out, int *limit_out);
 int cw_detect_billing(cJSON *usage_root, cJSON *stripe_root,
@@ -63,3 +66,16 @@ int cw_period_dashboard_metrics(cJSON *period_root, cJSON *plan_root,
 				size_t tip_cap);
 int cw_period_billing_cycle_ms(cJSON *period_root, long long *start_ms_out,
 				long long *end_ms_out);
+
+typedef struct {
+	int ok;
+	double included_pct;
+	long long included_tokens;
+	long long total_tokens;
+	long long period_start_ms;
+	long long period_end_ms;
+	int monthly_used_cents;
+	int monthly_limit_cents;
+} cw_v2_usage_t;
+
+int cw_v2_weekly_usage(const char *cookie_header, cw_v2_usage_t *out);

@@ -10,6 +10,6 @@
     "format": "{text}",
     "tooltip": true,
     "rotate": 0,
-    "max-length": 28
+    "min-length": 12
   }
 }

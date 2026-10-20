@@ -430,6 +430,11 @@ int main(void)
 	}
 	weekly = cw_usage_is_weekly(plan_root, period_root);
 
+	cw_v2_usage_t v2;
+	memset(&v2, 0, sizeof v2);
+	if (weekly && cookie)
+		cw_v2_weekly_usage(cookie, &v2);
+
 	cJSON *usage = cw_api_get_usage(&arena, cookie, user_id);
 	cJSON *stripe = cw_api_get_stripe(&arena, cookie);
 
@@ -476,7 +481,8 @@ int main(void)
 		}
 	}
 
-	if (kind == CW_BILL_USAGE_BASED || !cJSON_GetObjectItem(out, "text")) {
+	if (!v2.ok &&
+	    (kind == CW_BILL_USAGE_BASED || !cJSON_GetObjectItem(out, "text"))) {
 		long long now_ms =
 			(long long)time(NULL) * 1000LL;
 		long long start_ms = today_start_ms_local();
@@ -561,7 +567,108 @@ int main(void)
 		cJSON_AddStringToObject(out, "class", "cursor-usage-usagebased");
 	}
 
-	if (period_root) {
+	if (v2.ok) {
+		int tp = (int)(v2.included_pct + 0.5);
+		long long show_tok = v2.included_tokens >= 0 ? v2.included_tokens
+							    : v2.total_tokens;
+		char tok[24];
+		char ds[40] = "";
+		char de[40] = "";
+		const char *plan_name = "";
+		int days_left = 0;
+		long long now_ms = (long long)time(NULL) * 1000LL;
+		cJSON *pi = plan_root ? cJSON_GetObjectItemCaseSensitive(plan_root,
+									 "planInfo") :
+					NULL;
+
+		if (tp < 0)
+			tp = 0;
+		if (tp > 100)
+			tp = 100;
+		if (!cJSON_IsObject(pi))
+			pi = plan_root;
+		if (pi) {
+			cJSON *nm = cJSON_GetObjectItemCaseSensitive(pi, "planName");
+			if (cJSON_IsString(nm) && nm->valuestring)
+				plan_name = nm->valuestring;
+		}
+		if (v2.period_start_ms > 0 && v2.period_end_ms > v2.period_start_ms) {
+			time_t ts_s = (time_t)(v2.period_start_ms / 1000LL);
+			time_t ts_e = (time_t)(v2.period_end_ms / 1000LL);
+			struct tm tms, tme;
+			localtime_r(&ts_s, &tms);
+			localtime_r(&ts_e, &tme);
+			strftime(ds, sizeof ds, "%Y-%m-%d", &tms);
+			strftime(de, sizeof de, "%Y-%m-%d", &tme);
+			if (v2.period_end_ms > now_ms) {
+				days_left = (int)((v2.period_end_ms - now_ms +
+						    86400000LL - 1) /
+						   86400000LL);
+				if (days_left > 999)
+					days_left = 999;
+			}
+		}
+		tok[0] = '\0';
+		if (show_tok >= 0)
+			fmt_tokens_pretty(tok, sizeof tok, show_tok);
+		{
+			int w = 0;
+			const char *dayw = days_left == 1 ? "day left" : "days left";
+			if (ds[0] && de[0])
+				w += snprintf(tip + w, sizeof tip - (size_t)w,
+					      "Week: %s -> %s (%d %s)\r", ds, de,
+					      days_left, dayw);
+			w += snprintf(tip + w, sizeof tip - (size_t)w,
+				      "Included: %.1f%%\r", v2.included_pct);
+			if (plan_name[0])
+				w += snprintf(tip + w, sizeof tip - (size_t)w,
+					      "Plan: %s\r", plan_name);
+			if (tok[0])
+				w += snprintf(tip + w, sizeof tip - (size_t)w,
+					      "Tokens: %s\r", tok);
+			if (v2.monthly_limit_cents > 0) {
+				double used = v2.monthly_used_cents / 100.0;
+				double lim = v2.monthly_limit_cents / 100.0;
+
+				if (v2.monthly_used_cents > v2.monthly_limit_cents)
+					snprintf(tip + w, sizeof tip - (size_t)w,
+						 "On-demand this month: $%.2f "
+						 "($%.2f over $%.2f)\r",
+						 used, used - lim, lim);
+				else
+					snprintf(tip + w, sizeof tip - (size_t)w,
+						 "On-demand this month: $%.2f of $%.2f\r",
+						 used, lim);
+			}
+		}
+		{
+			char pct_s[20];
+			fmt_pct_label(pct_s, sizeof pct_s, v2.included_pct);
+			if (tok[0] && pct_s[0])
+				snprintf(text, sizeof text, "%s · %s", pct_s, tok);
+			else if (pct_s[0])
+				snprintf(text, sizeof text, "%s", pct_s);
+			else
+				snprintf(text, sizeof text, "%d%%", tp);
+		}
+
+		if (cJSON_GetObjectItem(out, "text"))
+			cJSON_DeleteItemFromObject(out, "text");
+		if (cJSON_GetObjectItem(out, "0"))
+			cJSON_DeleteItemFromObject(out, "0");
+		if (cJSON_GetObjectItem(out, "tooltip"))
+			cJSON_DeleteItemFromObject(out, "tooltip");
+		if (cJSON_GetObjectItem(out, "percentage"))
+			cJSON_DeleteItemFromObject(out, "percentage");
+		if (cJSON_GetObjectItem(out, "class"))
+			cJSON_DeleteItemFromObject(out, "class");
+		tooltip_lf_to_cr(tip);
+		cJSON_AddStringToObject(out, "text", text);
+		cJSON_AddStringToObject(out, "0", text);
+		cJSON_AddStringToObject(out, "tooltip", tip);
+		cJSON_AddNumberToObject(out, "percentage", v2.included_pct);
+		cJSON_AddStringToObject(out, "class", plan_usage_class(tp));
+	} else if (period_root) {
 		int tp = -1, ap = -1, apii = -1;
 		double auto_raw = NAN;
 		double api_raw = NAN;

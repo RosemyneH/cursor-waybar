@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 #include "cursor_waybar.h"
 
 #include <math.h>
@@ -286,6 +286,130 @@ int cw_period_dashboard_metrics(cJSON *period_root, cJSON *plan_root,
 				   dm->valuestring);
 	}
 
+	return 0;
+}
+
+static long long iso_utc_ms(const char *s)
+{
+	int year, mon, day, hour, min, sec;
+	struct tm tm;
+	time_t t;
+
+	if (!s || sscanf(s, "%d-%d-%dT%d:%d:%d", &year, &mon, &day, &hour, &min,
+			 &sec) != 6)
+		return 0;
+	memset(&tm, 0, sizeof tm);
+	tm.tm_year = year - 1900;
+	tm.tm_mon = mon - 1;
+	tm.tm_mday = day;
+	tm.tm_hour = hour;
+	tm.tm_min = min;
+	tm.tm_sec = sec;
+	t = timegm(&tm);
+	if (t < 0)
+		return 0;
+	return (long long)t * 1000LL;
+}
+
+static int json_ll_flex(cJSON *n, long long *out)
+{
+	if (!n || !out)
+		return -1;
+	if (cJSON_IsNumber(n)) {
+		*out = (long long)cJSON_GetNumberValue(n);
+		return 0;
+	}
+	if (cJSON_IsString(n) && n->valuestring && n->valuestring[0]) {
+		*out = strtoll(n->valuestring, NULL, 10);
+		return 0;
+	}
+	return -1;
+}
+
+int cw_v2_weekly_usage(const char *cookie_header, cw_v2_usage_t *out)
+{
+	cJSON *status;
+	cJSON *st;
+	cJSON *usage;
+	cJSON *start;
+	cJSON *end;
+	cJSON *monthly;
+	long long used = 0, budget = 0;
+	const char *status_s;
+
+	if (!out)
+		return -1;
+	memset(out, 0, sizeof *out);
+	out->included_tokens = -1;
+	out->total_tokens = -1;
+	out->monthly_limit_cents = -1;
+	if (!cookie_header)
+		return -1;
+
+	status = cw_api_get_usage_status(cookie_header);
+	if (!status)
+		return -1;
+	st = cJSON_GetObjectItemCaseSensitive(status, "weeklyIncludedStatus");
+	status_s = NULL;
+	if (cJSON_IsObject(st)) {
+		cJSON *ss = cJSON_GetObjectItemCaseSensitive(st, "status");
+		if (cJSON_IsString(ss))
+			status_s = ss->valuestring;
+	}
+	usage = cJSON_GetObjectItemCaseSensitive(status, "weeklyIncludedUsage");
+	if (!status_s || strcmp(status_s, "metered") || !cJSON_IsObject(usage) ||
+	    json_ll_flex(cJSON_GetObjectItemCaseSensitive(usage, "usedCents"),
+			 &used) ||
+	    json_ll_flex(cJSON_GetObjectItemCaseSensitive(usage, "budgetCents"),
+			 &budget) ||
+	    budget <= 0) {
+		cJSON_Delete(status);
+		return -1;
+	}
+	start = cJSON_GetObjectItemCaseSensitive(usage, "periodStart");
+	end = cJSON_GetObjectItemCaseSensitive(usage, "resetsAt");
+	if (!cJSON_IsString(start) || !start->valuestring ||
+	    !cJSON_IsString(end) || !end->valuestring) {
+		cJSON_Delete(status);
+		return -1;
+	}
+	out->included_pct = (double)used * 100.0 / (double)budget;
+	out->period_start_ms = iso_utc_ms(start->valuestring);
+	out->period_end_ms = iso_utc_ms(end->valuestring);
+	monthly = cJSON_GetObjectItemCaseSensitive(status, "monthlyUsage");
+	if (cJSON_IsObject(monthly)) {
+		long long mu = 0, ml = 0;
+		if (json_ll_flex(cJSON_GetObjectItemCaseSensitive(monthly, "usedCents"),
+				 &mu) == 0)
+			out->monthly_used_cents = (int)mu;
+		if (json_ll_flex(cJSON_GetObjectItemCaseSensitive(monthly, "limitCents"),
+				 &ml) == 0)
+			out->monthly_limit_cents = (int)ml;
+	}
+	{
+		char end_iso[40];
+		time_t now = time(NULL) + 120;
+		struct tm tm;
+		cJSON *daily;
+		long long inc = 0, tot = 0;
+
+		gmtime_r(&now, &tm);
+		strftime(end_iso, sizeof end_iso, "%Y-%m-%dT%H:%M:%S.000Z", &tm);
+		daily = cw_api_query_daily_usage(cookie_header, start->valuestring,
+						 end_iso);
+		if (daily &&
+		    json_ll_flex(cJSON_GetObjectItemCaseSensitive(
+					 daily, "totalIncludedTokens"),
+				 &inc) == 0 &&
+		    json_ll_flex(cJSON_GetObjectItemCaseSensitive(daily, "totalTokens"),
+				 &tot) == 0) {
+			out->included_tokens = inc;
+			out->total_tokens = tot;
+		}
+		cJSON_Delete(daily);
+	}
+	out->ok = 1;
+	cJSON_Delete(status);
 	return 0;
 }
 
